@@ -89,6 +89,8 @@
   </div>
 
   <button id="startBtn">Start timer</button>
+  <button id="enableNotifBtn" style="margin-top:10px; background:#f0f0ee; color:#222;">Enable notifications</button>
+  <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
 
   <div id="running">
     <div class="clock-box">
@@ -111,29 +113,11 @@ let intervalSec = 15 * 60;
 let timerId = null;
 let lastAlertBucket = null;
 let isPaused = false;
+let endTime = null; // timestamp (ms) when the timer should reach zero
 
-// Ask for notification permission up front (optional, for background alerts)
+// Ask for notification permission up front (fallback for when sound can't play)
 if ("Notification" in window && Notification.permission === "default") {
   Notification.requestPermission();
-}
-
-function beep() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 0.22, 0.44].forEach((t) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.type = "sine";
-      o.frequency.value = 880;
-      g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.2);
-      o.start(ctx.currentTime + t);
-      o.stop(ctx.currentTime + t + 0.22);
-    });
-  } catch (e) {}
 }
 
 function notify(message) {
@@ -141,6 +125,101 @@ function notify(message) {
     new Notification("Reminder timer", { body: message });
   }
 }
+
+function updateNotifStatus() {
+  const el = document.getElementById("notifStatus");
+  const btn = document.getElementById("enableNotifBtn");
+  if (!("Notification" in window)) {
+    el.textContent = "Notifications are not supported in this browser.";
+    btn.style.display = "none";
+    return;
+  }
+  if (Notification.permission === "granted") {
+    el.textContent = "Notifications are enabled (backup for when sound can't play).";
+    btn.style.display = "none";
+  } else if (Notification.permission === "denied") {
+    el.textContent = "Notifications are blocked. Enable them in your browser's site settings.";
+    btn.style.display = "none";
+  } else {
+    el.textContent = "Enable notifications as a backup for when sound can't play.";
+    btn.style.display = "block";
+  }
+}
+
+document.getElementById("enableNotifBtn").addEventListener("click", () => {
+  Notification.requestPermission().then(() => {
+    updateNotifStatus();
+  });
+});
+
+updateNotifStatus();
+
+// --- Sound ---
+// Reuse a single AudioContext and resume it every time, since browsers
+// auto-suspend it when the tab is backgrounded.
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+function beep() {
+  try {
+    const ctx = getAudioCtx();
+    const playTones = () => {
+      [0, 0.22, 0.44].forEach((t) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = "sine";
+        o.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.2);
+        o.start(ctx.currentTime + t);
+        o.stop(ctx.currentTime + t + 0.22);
+      });
+    };
+    if (ctx.state === "suspended") {
+      ctx.resume().then(playTones);
+    } else {
+      playTones();
+    }
+  } catch (e) {}
+}
+
+// --- Wake Lock ---
+// Best-effort: asks the browser/OS not to let the screen or tab sleep
+// while the timer is running. Only works while the screen is on; it
+// cannot keep a fully closed tab or locked phone active.
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ("wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+    }
+  } catch (e) {
+    // Wake lock not available or was denied — sound/notifications still work when the tab is visible
+  }
+}
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release();
+    wakeLock = null;
+  }
+}
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && timerId && !isPaused) {
+    if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+    requestWakeLock();
+    tick();
+  }
+});
 
 function fmt(s) {
   const m = Math.floor(s / 60);
@@ -155,7 +234,10 @@ function updateDisplay() {
 }
 
 function tick() {
-  remaining--;
+  // Recalculate remaining time from the real clock instead of subtracting 1,
+  // so background-tab throttling can't cause drift.
+  remaining = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+
   if (remaining <= 0) {
     remaining = 0;
     updateDisplay();
@@ -165,16 +247,17 @@ function tick() {
     clearInterval(timerId);
     timerId = null;
     document.getElementById("pauseBtn").disabled = true;
+    releaseWakeLock();
     return;
   }
   updateDisplay();
   const bucket = Math.floor(remaining / intervalSec);
-  if (remaining % intervalSec === 0 && bucket !== lastAlertBucket && remaining !== totalSeconds) {
+  if (bucket !== lastAlertBucket && remaining !== totalSeconds) {
     lastAlertBucket = bucket;
-    beep();
     const minsLeft = Math.round(remaining / 60);
-    const msg = minsLeft + " minutes left";
+    const msg = "You have only " + minsLeft + " min left";
     document.getElementById("statusMsg").textContent = msg;
+    beep();
     notify(msg);
   }
 }
@@ -188,6 +271,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
   intervalSec = iv * 60;
   lastAlertBucket = Math.floor(remaining / intervalSec);
   isPaused = false;
+  endTime = Date.now() + totalSeconds * 1000;
 
   document.getElementById("taskLabel").textContent = name;
   document.getElementById("statusMsg").textContent = "Timer running";
@@ -196,6 +280,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
   updateDisplay();
   document.getElementById("running").style.display = "block";
   beep();
+  requestWakeLock();
 
   clearInterval(timerId);
   timerId = setInterval(tick, 1000);
@@ -208,12 +293,15 @@ document.getElementById("pauseBtn").addEventListener("click", () => {
     timerId = null;
     document.getElementById("statusMsg").textContent = "Paused";
     document.getElementById("pauseBtn").textContent = "Resume";
+    releaseWakeLock();
   } else {
     isPaused = false;
+    endTime = Date.now() + remaining * 1000; // resume from wherever it was left
     document.getElementById("statusMsg").textContent = "Timer running";
     document.getElementById("pauseBtn").textContent = "Pause";
     clearInterval(timerId);
     timerId = setInterval(tick, 1000);
+    requestWakeLock();
   }
 });
 
@@ -221,6 +309,7 @@ document.getElementById("stopBtn").addEventListener("click", () => {
   clearInterval(timerId);
   timerId = null;
   document.getElementById("running").style.display = "none";
+  releaseWakeLock();
 });
 </script>
 
