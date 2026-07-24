@@ -115,15 +115,16 @@ let timerId = null;
 let lastAlertBucket = null;
 let isPaused = false;
 let endTime = null; // timestamp (ms) when the timer should reach zero
+let currentTaskName = "";
 
 // Ask for notification permission up front (fallback for when sound can't play)
 if ("Notification" in window && Notification.permission === "default") {
   Notification.requestPermission();
 }
 
-function notify(message) {
+function notify(title) {
   if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("Reminder timer", { body: message });
+    new Notification(title);
   }
 }
 
@@ -265,7 +266,7 @@ function tick() {
     updateDisplay();
     document.getElementById("statusMsg").textContent = "Time is up";
     beep();
-    notify("Time is up for your task.");
+    notify(currentTaskName + " - Time is up");
     tickWorker.postMessage("stop");
     timerId = null;
     document.getElementById("pauseBtn").disabled = true;
@@ -277,8 +278,8 @@ function tick() {
   if (bucket !== lastAlertBucket && remaining !== totalSeconds) {
     lastAlertBucket = bucket;
     const minsLeft = Math.round(remaining / 60);
-    const msg = "You have only " + minsLeft + " min left";
-    document.getElementById("statusMsg").textContent = msg;
+    const msg = currentTaskName + " - " + minsLeft + " min left";
+    document.getElementById("statusMsg").textContent = minsLeft + " min left";
     beep();
     notify(msg);
   }
@@ -294,6 +295,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
   lastAlertBucket = Math.floor(remaining / intervalSec);
   isPaused = false;
   endTime = Date.now() + totalSeconds * 1000;
+  currentTaskName = name;
 
   document.getElementById("taskLabel").textContent = name;
   document.getElementById("statusMsg").textContent = "Timer running";
