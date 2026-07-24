@@ -191,7 +191,28 @@ function beep() {
   } catch (e) {}
 }
 
-// --- Wake Lock ---
+// --- Ticking via a Web Worker ---
+// Regular setInterval on the main thread gets throttled by the browser once
+// a tab is hidden for a while (can coalesce to once a minute). A dedicated
+// worker thread is not subject to that page-visibility throttling, so it
+// keeps firing on schedule even when this tab is in the background.
+const workerCode = `
+  let intervalId = null;
+  self.onmessage = function(e) {
+    if (e.data === "start") {
+      clearInterval(intervalId);
+      intervalId = setInterval(() => self.postMessage("tick"), 1000);
+    } else if (e.data === "stop") {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+`;
+const workerBlob = new Blob([workerCode], { type: "application/javascript" });
+const tickWorker = new Worker(URL.createObjectURL(workerBlob));
+tickWorker.onmessage = () => {
+  if (timerId && !isPaused) tick();
+};
 // Best-effort: asks the browser/OS not to let the screen or tab sleep
 // while the timer is running. Only works while the screen is on; it
 // cannot keep a fully closed tab or locked phone active.
@@ -244,7 +265,7 @@ function tick() {
     document.getElementById("statusMsg").textContent = "Time is up";
     beep();
     notify("Time is up for your task.");
-    clearInterval(timerId);
+    tickWorker.postMessage("stop");
     timerId = null;
     document.getElementById("pauseBtn").disabled = true;
     releaseWakeLock();
@@ -283,13 +304,14 @@ document.getElementById("startBtn").addEventListener("click", () => {
   requestWakeLock();
 
   clearInterval(timerId);
-  timerId = setInterval(tick, 1000);
+  timerId = true;
+  tickWorker.postMessage("start");
 });
 
 document.getElementById("pauseBtn").addEventListener("click", () => {
   if (!isPaused) {
     isPaused = true;
-    clearInterval(timerId);
+    tickWorker.postMessage("stop");
     timerId = null;
     document.getElementById("statusMsg").textContent = "Paused";
     document.getElementById("pauseBtn").textContent = "Resume";
@@ -299,14 +321,14 @@ document.getElementById("pauseBtn").addEventListener("click", () => {
     endTime = Date.now() + remaining * 1000; // resume from wherever it was left
     document.getElementById("statusMsg").textContent = "Timer running";
     document.getElementById("pauseBtn").textContent = "Pause";
-    clearInterval(timerId);
-    timerId = setInterval(tick, 1000);
+    timerId = true;
+    tickWorker.postMessage("start");
     requestWakeLock();
   }
 });
 
 document.getElementById("stopBtn").addEventListener("click", () => {
-  clearInterval(timerId);
+  tickWorker.postMessage("stop");
   timerId = null;
   document.getElementById("running").style.display = "none";
   releaseWakeLock();
