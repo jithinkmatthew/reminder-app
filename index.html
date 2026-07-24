@@ -1,1 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reminder Timer</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f5f2;
+    color: #222;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 20px; }
+  label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    height: 40px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 0 12px;
+    font-size: 15px;
+    margin-bottom: 16px;
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button {
+    height: 44px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+  }
+  #startBtn { background: #222; color: #fff; }
+  #startBtn:hover { background: #000; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; }
+  .btn-row button { background: #f0f0ee; color: #222; }
+  .btn-row button:hover { background: #e5e5e2; }
+  #running { display: none; margin-top: 24px; }
+  .clock-box {
+    background: #f7f7f5;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+  }
+  #taskLabel { font-size: 13px; color: #666; margin: 0 0 6px; }
+  #clock { font-size: 40px; font-weight: 600; margin: 0; font-variant-numeric: tabular-nums; }
+  #statusMsg { font-size: 13px; color: #888; margin: 8px 0 0; }
+  .progress-track {
+    height: 6px;
+    background: #eee;
+    border-radius: 999px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+  #progressBar { height: 100%; width: 0%; background: #222; border-radius: 999px; transition: width 0.3s; }
+</style>
+</head>
+<body>
 
+<div class="card">
+  <h1>Reminder timer</h1>
+
+  <label for="taskName">Task name</label>
+  <input id="taskName" type="text" placeholder="Write project report" />
+
+  <div class="row">
+    <div>
+      <label for="durationMin">Duration (minutes)</label>
+      <input id="durationMin" type="number" min="1" step="15" value="60" />
+    </div>
+    <div>
+      <label for="intervalMin">Alert every (minutes)</label>
+      <input id="intervalMin" type="number" min="1" step="1" value="15" />
+    </div>
+  </div>
+
+  <button id="startBtn">Start timer</button>
+
+  <div id="running">
+    <div class="clock-box">
+      <p id="taskLabel">Task</p>
+      <p id="clock">60:00</p>
+      <p id="statusMsg">Timer running</p>
+    </div>
+    <div class="progress-track"><div id="progressBar"></div></div>
+    <div class="btn-row">
+      <button id="pauseBtn">Pause</button>
+      <button id="stopBtn">Stop</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let totalSeconds = 0;
+let remaining = 0;
+let intervalSec = 15 * 60;
+let timerId = null;
+let lastAlertBucket = null;
+let isPaused = false;
+
+// Ask for notification permission up front (optional, for background alerts)
+if ("Notification" in window && Notification.permission === "default") {
+  Notification.requestPermission();
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.22, 0.44].forEach((t) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.2);
+      o.start(ctx.currentTime + t);
+      o.stop(ctx.currentTime + t + 0.22);
+    });
+  } catch (e) {}
+}
+
+function notify(message) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("Reminder timer", { body: message });
+  }
+}
+
+function fmt(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
+}
+
+function updateDisplay() {
+  document.getElementById("clock").textContent = fmt(remaining);
+  const pct = ((totalSeconds - remaining) / totalSeconds) * 100;
+  document.getElementById("progressBar").style.width = pct + "%";
+}
+
+function tick() {
+  remaining--;
+  if (remaining <= 0) {
+    remaining = 0;
+    updateDisplay();
+    document.getElementById("statusMsg").textContent = "Time is up";
+    beep();
+    notify("Time is up for your task.");
+    clearInterval(timerId);
+    timerId = null;
+    document.getElementById("pauseBtn").disabled = true;
+    return;
+  }
+  updateDisplay();
+  const bucket = Math.floor(remaining / intervalSec);
+  if (remaining % intervalSec === 0 && bucket !== lastAlertBucket && remaining !== totalSeconds) {
+    lastAlertBucket = bucket;
+    beep();
+    const minsLeft = Math.round(remaining / 60);
+    const msg = minsLeft + " minutes left";
+    document.getElementById("statusMsg").textContent = msg;
+    notify(msg);
+  }
+}
+
+document.getElementById("startBtn").addEventListener("click", () => {
+  const name = document.getElementById("taskName").value.trim() || "Your task";
+  const dur = Math.max(1, parseInt(document.getElementById("durationMin").value) || 60);
+  const iv = Math.max(1, parseInt(document.getElementById("intervalMin").value) || 15);
+  totalSeconds = dur * 60;
+  remaining = totalSeconds;
+  intervalSec = iv * 60;
+  lastAlertBucket = Math.floor(remaining / intervalSec);
+  isPaused = false;
+
+  document.getElementById("taskLabel").textContent = name;
+  document.getElementById("statusMsg").textContent = "Timer running";
+  document.getElementById("pauseBtn").disabled = false;
+  document.getElementById("pauseBtn").textContent = "Pause";
+  updateDisplay();
+  document.getElementById("running").style.display = "block";
+  beep();
+
+  clearInterval(timerId);
+  timerId = setInterval(tick, 1000);
+});
+
+document.getElementById("pauseBtn").addEventListener("click", () => {
+  if (!isPaused) {
+    isPaused = true;
+    clearInterval(timerId);
+    timerId = null;
+    document.getElementById("statusMsg").textContent = "Paused";
+    document.getElementById("pauseBtn").textContent = "Resume";
+  } else {
+    isPaused = false;
+    document.getElementById("statusMsg").textContent = "Timer running";
+    document.getElementById("pauseBtn").textContent = "Pause";
+    clearInterval(timerId);
+    timerId = setInterval(tick, 1000);
+  }
+});
+
+document.getElementById("stopBtn").addEventListener("click", () => {
+  clearInterval(timerId);
+  timerId = null;
+  document.getElementById("running").style.display = "none";
+});
+</script>
+
+</body>
+</html>
