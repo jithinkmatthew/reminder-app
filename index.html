@@ -168,20 +168,21 @@
 
       <div class="row">
         <div>
+          <label>Duration</label>
           <div class="row" style="gap:8px;">
             <div>
-              <label for="durationMin">Minutes</label>
-              <input id="durationMin" type="number" min="0" step="1" value="0" placeholder="min" />
+              <label for="durationMin" style="font-size:11px; margin-bottom:4px;">Minutes</label>
+              <input id="durationMin" type="number" min="0" step="1" value="60" placeholder="min" />
             </div>
             <div>
-              <label for="durationSec">Seconds</label>
+              <label for="durationSec" style="font-size:11px; margin-bottom:4px;">Seconds</label>
               <input id="durationSec" type="number" min="0" max="59" step="1" value="0" placeholder="sec" />
             </div>
           </div>
         </div>
         <div>
           <label for="intervalMin">Alert every (minutes)</label>
-          <input id="intervalMin" type="number" min="1" step="1" value="0" />
+          <input id="intervalMin" type="number" min="1" step="1" value="15" />
         </div>
       </div>
 
@@ -210,7 +211,19 @@
       </div>
     </div>
 
-    <button id="enableNotifBtn" style="margin-top:10px; background:#f0f0ee; color:#222;">Enable notifications</button>
+    <div style="margin-top:20px;">
+      <label style="margin-bottom:8px;">Alert sound</label>
+      <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
+        <input type="radio" name="soundMode" value="same" checked style="width:auto; margin:0;" />
+        Same tone throughout
+      </label>
+      <label style="font-weight:400; display:flex; align-items:center; gap:8px; font-size:13px; color:#444; cursor:pointer;">
+        <input type="radio" name="soundMode" value="escalating" style="width:auto; margin:0;" />
+        Escalating tone — starts cool, builds urgency as time runs low
+      </label>
+    </div>
+
+    <button id="enableNotifBtn" style="margin-top:16px; background:#f0f0ee; color:#222;">Enable notifications</button>
     <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
   </div>
 
@@ -226,6 +239,7 @@ let isPaused = false;
 let endTime = null; // timestamp (ms) when the timer should reach zero
 let currentTaskName = "";
 let activeTaskId = null; // id of the task currently running, if any
+let soundMode = "same"; // 'same' | 'escalating' - which interval alert sound to use
 
 // Ask for notification permission up front (fallback for when sound can't play)
 if ("Notification" in window && Notification.permission === "default") {
@@ -336,6 +350,52 @@ function beepDone() {
   } catch (e) {}
 }
 
+// Escalating alert tone: at the start of a task (progress 0) this sounds like
+// a single calm sine beep around 420Hz. As progress moves toward 1 (task
+// nearly out of time), the pitch climbs toward ~1100Hz, the waveform gets
+// harsher (sine -> triangle -> square), and extra rapid pulses are added —
+// so the *same* interval alert audibly builds urgency over the task.
+function beepEscalating(progress) {
+  try {
+    const ctx = getAudioCtx();
+    const p = Math.max(0, Math.min(1, progress));
+    const freq = 420 + p * (1100 - 420);
+    const waveType = p < 0.5 ? "sine" : p < 0.8 ? "triangle" : "square";
+    const pulseCount = p < 0.4 ? 1 : p < 0.75 ? 2 : 3;
+    const playTones = () => {
+      for (let i = 0; i < pulseCount; i++) {
+        const t = i * 0.16;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = waveType;
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.16);
+        o.start(ctx.currentTime + t);
+        o.stop(ctx.currentTime + t + 0.18);
+      }
+    };
+    if (ctx.state === "suspended") {
+      ctx.resume().then(playTones);
+    } else {
+      playTones();
+    }
+  } catch (e) {}
+}
+
+// Picks the right interval-alert sound based on the user's chosen sound mode.
+// progress is 0 at task start and approaches 1 as the task runs out of time.
+function playAlertTone(progress) {
+  if (soundMode === "escalating") {
+    beepEscalating(progress);
+  } else {
+    beep();
+  }
+}
+
 // --- Ticking via a Web Worker ---
 // Regular setInterval on the main thread gets throttled by the browser once
 // a tab is hidden for a while (can coalesce to once a minute). A dedicated
@@ -425,7 +485,8 @@ function tick() {
     const minsLeft = Math.round(remaining / 60);
     const msg = currentTaskName + " - " + minsLeft + " min left";
     document.getElementById("statusMsg").textContent = minsLeft + " min left";
-    beep();
+    const progress = (totalSeconds - remaining) / totalSeconds;
+    playAlertTone(progress);
     notify(msg);
   }
 }
@@ -448,7 +509,7 @@ function startTimer(name, durationSeconds, iv, taskId) {
   document.getElementById("pauseBtn").textContent = "Pause";
   updateDisplay();
   document.getElementById("running").style.display = "block";
-  beep();
+  playAlertTone(0);
   requestWakeLock();
 
   clearInterval(timerId);
@@ -485,6 +546,38 @@ document.getElementById("stopBtn").addEventListener("click", () => {
   activeTaskId = null;
   renderTasks();
 });
+
+// --- Sound mode preference (persisted in browser storage) ---
+const SOUND_MODE_KEY = "reminder-timer-sound-mode";
+
+async function loadSoundMode() {
+  try {
+    const result = await window.storage.get(SOUND_MODE_KEY, false);
+    if (result && result.value) {
+      soundMode = result.value;
+    }
+  } catch (e) {
+    // No saved preference yet - keep the default
+  }
+  const radio = document.querySelector('input[name="soundMode"][value="' + soundMode + '"]');
+  if (radio) radio.checked = true;
+}
+
+async function saveSoundMode() {
+  try {
+    await window.storage.set(SOUND_MODE_KEY, soundMode, false);
+  } catch (e) {}
+}
+
+document.querySelectorAll('input[name="soundMode"]').forEach((radio) => {
+  radio.addEventListener("change", (e) => {
+    soundMode = e.target.value;
+    saveSoundMode();
+    playAlertTone(0); // quick preview of the base tone for the chosen mode
+  });
+});
+
+loadSoundMode();
 
 // --- Task list (persisted in browser storage) ---
 let tasks = [];
