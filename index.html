@@ -15,14 +15,34 @@
     justify-content: center;
     padding: 40px 16px;
   }
-  .card {
+  .app {
     width: 100%;
-    max-width: 420px;
+    max-width: 880px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .card {
+    flex: 1;
+    min-width: 0;
     background: #fff;
     border-radius: 16px;
     padding: 28px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 2px dashed transparent;
+    transition: border-color 0.15s, background 0.15s;
   }
+  .card.drop-target {
+    border-color: #222;
+    background: #fafaf8;
+  }
+  #dropHint {
+    font-size: 13px;
+    color: #999;
+    text-align: center;
+    margin: -8px 0 20px;
+  }
+  .card.drop-target #dropHint { color: #222; font-weight: 500; }
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 20px; }
   label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
   input[type="text"], input[type="number"] {
@@ -45,8 +65,10 @@
     cursor: pointer;
     width: 100%;
   }
-  #startBtn { background: #222; color: #fff; }
-  #startBtn:hover { background: #000; }
+  #toggleAddBtn { background: #222; color: #fff; }
+  #toggleAddBtn:hover { background: #000; }
+  #toggleAddBtn.is-open { background: #f0f0ee; color: #222; }
+  #toggleAddBtn.is-open:hover { background: #e5e5e2; }
   .btn-row { display: flex; gap: 10px; margin-top: 14px; }
   .btn-row button { background: #f0f0ee; color: #222; }
   .btn-row button:hover { background: #e5e5e2; }
@@ -68,43 +90,122 @@
     overflow: hidden;
   }
   #progressBar { height: 100%; width: 0%; background: #222; border-radius: 999px; transition: width 0.3s; }
+
+  /* --- Task pane --- */
+  .tasks-card { display: flex; flex-direction: column; }
+  #addTaskForm {
+    display: none;
+    margin-top: 20px;
+    padding-top: 4px;
+  }
+  #addTaskForm.open { display: block; }
+  #addTaskBtn { background: #222; color: #fff; }
+  #addTaskBtn:hover { background: #000; }
+  .task-list {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 480px;
+    overflow-y: auto;
+  }
+  .task-item {
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: grab;
+  }
+  .task-item:active { cursor: grabbing; }
+  .task-item.dragging { opacity: 0.4; }
+  .task-item.active { border-color: #222; background: #f7f7f5; }
+  .drag-handle {
+    color: #ccc;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+    letter-spacing: 1px;
+  }
+  .task-info { flex: 1; min-width: 0; }
+  .task-name {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .task-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .task-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .task-actions button {
+    width: auto;
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+  .task-start { background: #222; color: #fff; }
+  .task-start:hover { background: #000; }
+  .task-delete { background: #f0f0ee; color: #888; }
+  .task-delete:hover { background: #f5d9d9; color: #b33; }
+  .task-empty { font-size: 13px; color: #999; text-align: center; padding: 24px 0; }
+  @media (max-width: 720px) {
+    .app { flex-direction: column; }
+  }
 </style>
 </head>
 <body>
 
-<div class="card">
-  <h1>Reminder timer</h1>
+<div class="app">
 
-  <label for="taskName">Task name</label>
-  <input id="taskName" type="text" placeholder="Write project report" />
+  <div class="card tasks-card">
+    <h1>Today's tasks</h1>
+    <button id="toggleAddBtn">+ Add task</button>
 
-  <div class="row">
-    <div>
-      <label for="durationMin">Duration (minutes)</label>
-      <input id="durationMin" type="number" min="1" step="15" value="60" />
+    <div id="addTaskForm">
+      <label for="taskName">Task name</label>
+      <input id="taskName" type="text" placeholder="Write project report" />
+
+      <div class="row">
+        <div>
+          <label for="durationMin">Duration (minutes)</label>
+          <input id="durationMin" type="number" min="1" step="15" value="60" />
+        </div>
+        <div>
+          <label for="intervalMin">Alert every (minutes)</label>
+          <input id="intervalMin" type="number" min="1" step="1" value="15" />
+        </div>
+      </div>
+
+      <button id="addTaskBtn">Add task</button>
     </div>
-    <div>
-      <label for="intervalMin">Alert every (minutes)</label>
-      <input id="intervalMin" type="number" min="1" step="1" value="15" />
-    </div>
-  </div>
 
-  <button id="startBtn">Start timer</button>
-  <button id="enableNotifBtn" style="margin-top:10px; background:#f0f0ee; color:#222;">Enable notifications</button>
-  <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
-
-  <div id="running">
-    <div class="clock-box">
-      <p id="taskLabel">Task</p>
-      <p id="clock">60:00</p>
-      <p id="statusMsg">Timer running</p>
-    </div>
-    <div class="progress-track"><div id="progressBar"></div></div>
-    <div class="btn-row">
-      <button id="pauseBtn">Pause</button>
-      <button id="stopBtn">Stop</button>
+    <div id="taskList" class="task-list">
+      <p class="task-empty">No tasks yet. Click "+ Add task" to create one.</p>
     </div>
   </div>
+
+  <div class="card" id="timerCard">
+    <h1>Reminder timer</h1>
+    <p id="dropHint">Drag a task from the left to start it</p>
+
+    <div id="running">
+      <div class="clock-box">
+        <p id="taskLabel">Task</p>
+        <p id="clock">60:00</p>
+        <p id="statusMsg">Timer running</p>
+      </div>
+      <div class="progress-track"><div id="progressBar"></div></div>
+      <div class="btn-row">
+        <button id="pauseBtn">Pause</button>
+        <button id="stopBtn">Stop</button>
+      </div>
+    </div>
+
+    <button id="enableNotifBtn" style="margin-top:10px; background:#f0f0ee; color:#222;">Enable notifications</button>
+    <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
+  </div>
+
 </div>
 
 <script>
@@ -116,6 +217,7 @@ let lastAlertBucket = null;
 let isPaused = false;
 let endTime = null; // timestamp (ms) when the timer should reach zero
 let currentTaskName = "";
+let activeTaskId = null; // id of the task currently running, if any
 
 // Ask for notification permission up front (fallback for when sound can't play)
 if ("Notification" in window && Notification.permission === "default") {
@@ -271,6 +373,8 @@ function tick() {
     timerId = null;
     document.getElementById("pauseBtn").disabled = true;
     releaseWakeLock();
+    activeTaskId = null;
+    renderTasks();
     return;
   }
   updateDisplay();
@@ -285,10 +389,9 @@ function tick() {
   }
 }
 
-document.getElementById("startBtn").addEventListener("click", () => {
-  const name = document.getElementById("taskName").value.trim() || "Your task";
-  const dur = Math.max(1, parseInt(document.getElementById("durationMin").value) || 60);
-  const iv = Math.max(1, parseInt(document.getElementById("intervalMin").value) || 15);
+// Core start routine, now reusable so both the Start button and a task's
+// Start button can trigger it.
+function startTimer(name, dur, iv, taskId) {
   totalSeconds = dur * 60;
   remaining = totalSeconds;
   intervalSec = iv * 60;
@@ -296,6 +399,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
   isPaused = false;
   endTime = Date.now() + totalSeconds * 1000;
   currentTaskName = name;
+  activeTaskId = taskId || null;
 
   document.getElementById("taskLabel").textContent = name;
   document.getElementById("statusMsg").textContent = "Timer running";
@@ -309,7 +413,9 @@ document.getElementById("startBtn").addEventListener("click", () => {
   clearInterval(timerId);
   timerId = true;
   tickWorker.postMessage("start");
-});
+
+  renderTasks();
+}
 
 document.getElementById("pauseBtn").addEventListener("click", () => {
   if (!isPaused) {
@@ -335,7 +441,178 @@ document.getElementById("stopBtn").addEventListener("click", () => {
   timerId = null;
   document.getElementById("running").style.display = "none";
   releaseWakeLock();
+  activeTaskId = null;
+  renderTasks();
 });
+
+// --- Task list (persisted in browser storage) ---
+let tasks = [];
+const STORAGE_KEY = "reminder-timer-tasks";
+
+async function loadTasks() {
+  try {
+    const result = await window.storage.get(STORAGE_KEY, false);
+    tasks = result && result.value ? JSON.parse(result.value) : [];
+  } catch (e) {
+    tasks = [];
+  }
+  renderTasks();
+}
+
+async function saveTasks() {
+  try {
+    await window.storage.set(STORAGE_KEY, JSON.stringify(tasks), false);
+  } catch (e) {
+    // Storage failed silently — tasks still work for this session
+  }
+}
+
+function renderTasks() {
+  const container = document.getElementById("taskList");
+  container.innerHTML = "";
+
+  if (tasks.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "task-empty";
+    empty.textContent = "No tasks yet. Click \"+ Add task\" to create one.";
+    container.appendChild(empty);
+    return;
+  }
+
+  tasks.forEach((task) => {
+    const item = document.createElement("div");
+    item.className = "task-item" + (task.id === activeTaskId ? " active" : "");
+    item.draggable = true;
+    item.dataset.taskId = task.id;
+
+    const handle = document.createElement("div");
+    handle.className = "drag-handle";
+    handle.textContent = "⠿";
+
+    const info = document.createElement("div");
+    info.className = "task-info";
+    const nameEl = document.createElement("div");
+    nameEl.className = "task-name";
+    nameEl.textContent = task.name;
+    const metaEl = document.createElement("div");
+    metaEl.className = "task-meta";
+    metaEl.textContent = task.duration + " min · alert every " + task.interval + " min" + (task.id === activeTaskId ? " · running" : "");
+    info.appendChild(nameEl);
+    info.appendChild(metaEl);
+
+    const actions = document.createElement("div");
+    actions.className = "task-actions";
+
+    const delB = document.createElement("button");
+    delB.className = "task-delete";
+    delB.textContent = "×";
+    delB.title = "Delete task";
+    delB.addEventListener("click", () => {
+      tasks = tasks.filter((t) => t.id !== task.id);
+      if (activeTaskId === task.id) activeTaskId = null;
+      saveTasks();
+      renderTasks();
+    });
+
+    actions.appendChild(delB);
+
+    item.appendChild(handle);
+    item.appendChild(info);
+    item.appendChild(actions);
+
+    // Drag to start: dragging a task card onto the timer pane starts it,
+    // same as picking it up off a paper to-do list and putting it in front of you.
+    item.addEventListener("dragstart", (e) => {
+      item.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", task.id);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+    });
+
+    container.appendChild(item);
+  });
+}
+
+const timerCard = document.getElementById("timerCard");
+
+timerCard.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  timerCard.classList.add("drop-target");
+});
+
+timerCard.addEventListener("dragleave", (e) => {
+  // Only clear the highlight once the pointer actually leaves the card,
+  // not when it passes over a child element inside it.
+  if (!timerCard.contains(e.relatedTarget)) {
+    timerCard.classList.remove("drop-target");
+  }
+});
+
+timerCard.addEventListener("drop", (e) => {
+  e.preventDefault();
+  timerCard.classList.remove("drop-target");
+  const taskId = e.dataTransfer.getData("text/plain");
+  const task = tasks.find((t) => t.id === taskId);
+  if (task) {
+    startTimer(task.name, task.duration, task.interval, task.id);
+  }
+});
+
+const addTaskForm = document.getElementById("addTaskForm");
+const toggleAddBtn = document.getElementById("toggleAddBtn");
+
+function openAddForm() {
+  addTaskForm.classList.add("open");
+  toggleAddBtn.textContent = "Cancel";
+  toggleAddBtn.classList.add("is-open");
+  document.getElementById("taskName").focus();
+}
+
+function closeAddForm() {
+  addTaskForm.classList.remove("open");
+  toggleAddBtn.textContent = "+ Add task";
+  toggleAddBtn.classList.remove("is-open");
+}
+
+toggleAddBtn.addEventListener("click", () => {
+  if (addTaskForm.classList.contains("open")) {
+    closeAddForm();
+  } else {
+    openAddForm();
+  }
+});
+
+document.getElementById("addTaskBtn").addEventListener("click", () => {
+  const name = document.getElementById("taskName").value.trim();
+  const dur = Math.max(1, parseInt(document.getElementById("durationMin").value) || 60);
+  const iv = Math.max(1, parseInt(document.getElementById("intervalMin").value) || 15);
+
+  if (!name) {
+    document.getElementById("taskName").focus();
+    document.getElementById("taskName").placeholder = "Name this task before adding it";
+    return;
+  }
+
+  tasks.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: name,
+    duration: dur,
+    interval: iv,
+  });
+
+  saveTasks();
+  renderTasks();
+
+  document.getElementById("taskName").value = "";
+  document.getElementById("durationMin").value = 60;
+  document.getElementById("intervalMin").value = 15;
+  closeAddForm();
+});
+
+loadTasks();
 </script>
 
 </body>
