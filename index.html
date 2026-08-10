@@ -168,10 +168,16 @@
 
       <div class="row">
         <div>
-          <label for="durationMin">Duration</label>
+          <label>Duration</label>
           <div class="row" style="gap:8px;">
-            <input id="durationMin" type="number" min="0" step="1" value="60" placeholder="min" />
-            <input id="durationSec" type="number" min="0" max="59" step="1" value="0" placeholder="sec" />
+            <div>
+              <label for="durationMin" style="font-size:11px; margin-bottom:4px;">Minutes</label>
+              <input id="durationMin" type="number" min="0" step="1" value="60" placeholder="min" />
+            </div>
+            <div>
+              <label for="durationSec" style="font-size:11px; margin-bottom:4px;">Seconds</label>
+              <input id="durationSec" type="number" min="0" max="59" step="1" value="0" placeholder="sec" />
+            </div>
           </div>
         </div>
         <div>
