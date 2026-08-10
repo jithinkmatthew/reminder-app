@@ -295,6 +295,39 @@ function beep() {
   } catch (e) {}
 }
 
+// Distinct "time's up" sound: a longer, descending three-note phrase so it's
+// clearly different from the interval beep above.
+function beepDone() {
+  try {
+    const ctx = getAudioCtx();
+    const notes = [
+      { freq: 660, t: 0 },
+      { freq: 523.25, t: 0.28 },
+      { freq: 392, t: 0.56 },
+    ];
+    const playTones = () => {
+      notes.forEach(({ freq, t }) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = "triangle";
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + t + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.4);
+        o.start(ctx.currentTime + t);
+        o.stop(ctx.currentTime + t + 0.42);
+      });
+    };
+    if (ctx.state === "suspended") {
+      ctx.resume().then(playTones);
+    } else {
+      playTones();
+    }
+  } catch (e) {}
+}
+
 // --- Ticking via a Web Worker ---
 // Regular setInterval on the main thread gets throttled by the browser once
 // a tab is hidden for a while (can coalesce to once a minute). A dedicated
@@ -367,7 +400,7 @@ function tick() {
     remaining = 0;
     updateDisplay();
     document.getElementById("statusMsg").textContent = "Time is up";
-    beep();
+    beepDone();
     notify(currentTaskName + " - Time is up");
     tickWorker.postMessage("stop");
     timerId = null;
