@@ -168,21 +168,20 @@
 
       <div class="row">
         <div>
-          <label>Duration</label>
           <div class="row" style="gap:8px;">
             <div>
-              <label for="durationMin" style="font-size:11px; margin-bottom:4px;">Minutes</label>
-              <input id="durationMin" type="number" min="0" step="1" value="60" placeholder="min" />
+              <label for="durationMin" >Minutes</label>
+              <input id="durationMin" type="number" min="0" step="1" value="0" placeholder="min" />
             </div>
             <div>
-              <label for="durationSec" style="font-size:11px; margin-bottom:4px;">Seconds</label>
+              <label for="durationSec" >Seconds</label>
               <input id="durationSec" type="number" min="0" max="59" step="1" value="0" placeholder="sec" />
             </div>
           </div>
         </div>
         <div>
           <label for="intervalMin">Alert every (minutes)</label>
-          <input id="intervalMin" type="number" min="1" step="1" value="15" />
+          <input id="intervalMin" type="number" min="1" step="1" value="0" />
         </div>
       </div>
 
@@ -291,22 +290,26 @@ function getAudioCtx() {
   return audioCtx;
 }
 
+function playTick(ctx, time, freq, type, gainPeak, duration) {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.connect(g);
+  g.connect(ctx.destination);
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, ctx.currentTime + time);
+  g.gain.exponentialRampToValueAtTime(gainPeak, ctx.currentTime + time + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + time + duration);
+  o.start(ctx.currentTime + time);
+  o.stop(ctx.currentTime + time + duration + 0.02);
+}
+
 function beep() {
   try {
     const ctx = getAudioCtx();
     const playTones = () => {
-      [0, 0.22, 0.44].forEach((t) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.type = "sine";
-        o.frequency.value = 880;
-        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
-        g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.2);
-        o.start(ctx.currentTime + t);
-        o.stop(ctx.currentTime + t + 0.22);
+      [0, 0.16].forEach((t) => {
+        playTick(ctx, t, 1000, "square", 0.35, 0.06);
       });
     };
     if (ctx.state === "suspended") {
@@ -350,33 +353,22 @@ function beepDone() {
   } catch (e) {}
 }
 
-// Escalating alert tone: at the start of a task (progress 0) this sounds like
-// a single calm sine beep around 420Hz. As progress moves toward 1 (task
-// nearly out of time), the pitch climbs toward ~1100Hz, the waveform gets
-// harsher (sine -> triangle -> square), and extra rapid pulses are added —
-// so the *same* interval alert audibly builds urgency over the task.
+// Escalating alert tone: always exactly two ticks ("tick tick"), but as
+// progress moves from 0 (task start) toward 1 (task nearly out of time),
+// the pitch climbs (~650Hz -> ~1400Hz), the click gets harsher (sine ->
+// triangle -> square), and the two ticks land closer together — so the
+// same tick-tick alert audibly builds urgency over the task without ever
+// adding more ticks.
 function beepEscalating(progress) {
   try {
     const ctx = getAudioCtx();
     const p = Math.max(0, Math.min(1, progress));
-    const freq = 420 + p * (1100 - 420);
+    const freq = 650 + p * (1400 - 650);
     const waveType = p < 0.5 ? "sine" : p < 0.8 ? "triangle" : "square";
-    const pulseCount = p < 0.4 ? 1 : p < 0.75 ? 2 : 3;
+    const gap = 0.16 - p * 0.06; // the two ticks land closer together as urgency rises
     const playTones = () => {
-      for (let i = 0; i < pulseCount; i++) {
-        const t = i * 0.16;
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.type = waveType;
-        o.frequency.value = freq;
-        g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
-        g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.16);
-        o.start(ctx.currentTime + t);
-        o.stop(ctx.currentTime + t + 0.18);
-      }
+      playTick(ctx, 0, freq, waveType, 0.35, 0.06);
+      playTick(ctx, gap, freq, waveType, 0.35, 0.06);
     };
     if (ctx.state === "suspended") {
       ctx.resume().then(playTones);
