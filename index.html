@@ -17,7 +17,7 @@
   }
   .app {
     width: 100%;
-    max-width: 880px;
+    max-width: 560px;
     display: flex;
     gap: 20px;
     align-items: flex-start;
@@ -32,17 +32,6 @@
     border: 2px dashed transparent;
     transition: border-color 0.15s, background 0.15s;
   }
-  .card.drop-target {
-    border-color: #222;
-    background: #fafaf8;
-  }
-  #dropHint {
-    font-size: 13px;
-    color: #999;
-    text-align: center;
-    margin: -8px 0 20px;
-  }
-  .card.drop-target #dropHint { color: #222; font-weight: 500; }
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 20px; }
   label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
   input[type="text"], input[type="number"] {
@@ -72,24 +61,32 @@
   .btn-row { display: flex; gap: 10px; margin-top: 14px; }
   .btn-row button { background: #f0f0ee; color: #222; }
   .btn-row button:hover { background: #e5e5e2; }
-  #running { display: none; margin-top: 24px; }
-  .clock-box {
-    background: #f7f7f5;
-    border-radius: 12px;
-    padding: 24px;
-    text-align: center;
-  }
-  #taskLabel { font-size: 13px; color: #666; margin: 0 0 6px; }
-  #clock { font-size: 40px; font-weight: 600; margin: 0; font-variant-numeric: tabular-nums; }
-  #statusMsg { font-size: 13px; color: #888; margin: 8px 0 0; }
   .progress-track {
     height: 6px;
     background: #eee;
     border-radius: 999px;
-    margin-top: 16px;
     overflow: hidden;
   }
   #progressBar { height: 100%; width: 0%; background: #222; border-radius: 999px; transition: width 0.3s; }
+
+  /* --- Settings card (alert sound + notifications) --- */
+  .settings-card {
+    margin-top: 20px;
+    background: #fafaf8;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 18px 18px 4px;
+  }
+  .settings-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #222;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 14px;
+  }
+  .settings-section { margin-bottom: 16px; }
+  .settings-section #enableNotifBtn { height: 40px; }
 
   /* --- Task pane --- */
   .tasks-card { display: flex; flex-direction: column; }
@@ -114,29 +111,37 @@
     border-radius: 10px;
     padding: 12px 14px;
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .task-item.active { border-color: #222; background: #f7f7f5; }
+  .task-row {
+    display: flex;
     align-items: center;
     gap: 10px;
-    cursor: grab;
   }
-  .task-item:active { cursor: grabbing; }
-  .task-item.dragging { opacity: 0.4; }
-  .task-item.active { border-color: #222; background: #f7f7f5; }
-  .drag-handle {
-    color: #ccc;
-    font-size: 14px;
-    line-height: 1;
-    flex-shrink: 0;
-    letter-spacing: 1px;
-  }
-  .task-info { flex: 1; min-width: 0; }
   .task-name {
+    flex: 1;
+    min-width: 0;
     font-size: 14px;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .task-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .task-meta { font-size: 12px; color: #888; }
+  .task-clock-box {
+    background: #fff;
+    border: 1px solid #e5e5e2;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 4px;
+    width: 100%;
+    text-align: center;
+  }
+  .task-clock-box #statusMsg { font-size: 12px; color: #888; margin: 0 0 4px; }
+  .task-clock-box #clock { font-size: 26px; font-weight: 600; margin: 0; font-variant-numeric: tabular-nums; }
+  .task-clock-box .progress-track { margin-top: 10px; }
   .task-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .task-actions button {
     width: auto;
@@ -148,6 +153,25 @@
   .task-start:hover { background: #000; }
   .task-delete { background: #f0f0ee; color: #888; }
   .task-delete:hover { background: #f5d9d9; color: #b33; }
+  .task-actions .task-icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+    background: #f0f0ee;
+    color: #333;
+  }
+  .task-actions .task-icon-btn:hover:not(:disabled) { background: #e5e5e2; }
+  .task-actions .task-icon-btn:disabled { opacity: 0.35; cursor: default; }
+  .task-actions .task-start-icon { background: #222; color: #fff; }
+  .task-actions .task-start-icon:hover:not(:disabled) { background: #000; }
+  .task-actions .task-start-icon:disabled { background: #ccc; color: #fff; }
+  .task-actions .task-delete:hover:not(:disabled) { background: #f5d9d9; color: #b33; }
   .task-empty { font-size: 13px; color: #999; text-align: center; padding: 24px 0; }
   @media (max-width: 720px) {
     .app { flex-direction: column; }
@@ -160,7 +184,34 @@
 
   <div class="card tasks-card">
     <h1>Today's tasks</h1>
-    <button id="toggleAddBtn">+ Add task</button>
+
+    <div class="settings-card">
+      <div class="settings-title">Settings</div>
+
+      <div class="settings-section">
+        <label style="margin-bottom:8px;">Alert sound</label>
+        <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
+          <input type="radio" name="soundMode" value="same" checked style="width:auto; margin:0;" />
+          Same tone throughout
+        </label>
+        <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
+          <input type="radio" name="soundMode" value="escalating" style="width:auto; margin:0;" />
+          Escalating tone — starts cool, builds urgency as time runs low
+        </label>
+        <label style="font-weight:400; display:flex; align-items:center; gap:8px; font-size:13px; color:#444; cursor:pointer;">
+          <input type="radio" name="soundMode" value="voice" style="width:auto; margin:0;" />
+          Human voice — speaks the time left
+        </label>
+      </div>
+
+      <div class="settings-section">
+        <label style="margin-bottom:8px;">Notifications</label>
+        <button id="enableNotifBtn" style="background:#f0f0ee; color:#222;">Enable notifications</button>
+        <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
+      </div>
+    </div>
+
+    <button id="toggleAddBtn" style="margin-top:20px;">+ Add task</button>
 
     <div id="addTaskForm">
       <label for="taskName">Task name</label>
@@ -191,39 +242,6 @@
     <div id="taskList" class="task-list">
       <p class="task-empty">No tasks yet. Click "+ Add task" to create one.</p>
     </div>
-  </div>
-
-  <div class="card" id="timerCard">
-    <h1>Reminder timer</h1>
-    <p id="dropHint">Drag a task from the left to start it</p>
-
-    <div id="running">
-      <div class="clock-box">
-        <p id="taskLabel">Task</p>
-        <p id="clock">60:00</p>
-        <p id="statusMsg">Timer running</p>
-      </div>
-      <div class="progress-track"><div id="progressBar"></div></div>
-      <div class="btn-row">
-        <button id="pauseBtn">Pause</button>
-        <button id="stopBtn">Stop</button>
-      </div>
-    </div>
-
-    <div style="margin-top:20px;">
-      <label style="margin-bottom:8px;">Alert sound</label>
-      <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
-        <input type="radio" name="soundMode" value="same" checked style="width:auto; margin:0;" />
-        Same tone throughout
-      </label>
-      <label style="font-weight:400; display:flex; align-items:center; gap:8px; font-size:13px; color:#444; cursor:pointer;">
-        <input type="radio" name="soundMode" value="escalating" style="width:auto; margin:0;" />
-        Escalating tone — starts cool, builds urgency as time runs low
-      </label>
-    </div>
-
-    <button id="enableNotifBtn" style="margin-top:16px; background:#f0f0ee; color:#222;">Enable notifications</button>
-    <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
   </div>
 
 </div>
@@ -382,12 +400,75 @@ function beepEscalating(progress) {
 
 // Picks the right interval-alert sound based on the user's chosen sound mode.
 // progress is 0 at task start and approaches 1 as the task runs out of time.
-function playAlertTone(progress) {
-  if (soundMode === "escalating") {
+// message is only used by "voice" mode — the words that get spoken aloud.
+function playAlertTone(progress, message) {
+  if (soundMode === "voice") {
+    speak(message || "Alert");
+  } else if (soundMode === "escalating") {
     beepEscalating(progress);
   } else {
     beep();
   }
+}
+
+// --- Human voice alerts, via the browser's built-in text-to-speech ---
+// Picks one consistent, natural-sounding voice — never an Indian-English one.
+let cachedVoices = [];
+function loadVoices() {
+  cachedVoices = window.speechSynthesis.getVoices();
+}
+if ("speechSynthesis" in window) {
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices; // voice list loads async in some browsers
+}
+
+// Well-known, good-quality voice names that ship with the major browsers/OSes.
+// Checked in order — first match wins.
+const PREFERRED_VOICE_NAMES = [
+  "Google US English",       // Chrome/Edge (desktop + Android)
+  "Samantha",                 // Safari/macOS/iOS
+  "Microsoft Aria Online (Natural) - English (United States)", // Edge (newer)
+  "Microsoft Zira - English (United States)", // Windows/Edge (older)
+  "Microsoft David - English (United States)", // Windows/Edge (older)
+  "Alex",                     // macOS
+  "Daniel",                   // Safari/macOS (British, decent fallback)
+];
+
+function isIndianEnglish(v) {
+  const lang = (v.lang || "").toLowerCase();
+  const name = (v.name || "").toLowerCase();
+  return lang === "en-in" || name.includes("india") || name.includes("indian");
+}
+
+function pickVoice() {
+  if (!cachedVoices.length) cachedVoices = window.speechSynthesis.getVoices();
+  const candidates = cachedVoices.filter((v) => !isIndianEnglish(v));
+
+  for (const name of PREFERRED_VOICE_NAMES) {
+    const match = candidates.find((v) => v.name === name);
+    if (match) return match;
+  }
+  // Fall back to any US English voice, then any English voice, excluding Indian English throughout.
+  return (
+    candidates.find((v) => v.lang === "en-US") ||
+    candidates.find((v) => v.lang && v.lang.startsWith("en")) ||
+    candidates[0] ||
+    null
+  );
+}
+
+function speak(text) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel(); // don't let alerts pile up and overlap
+    const utter = new SpeechSynthesisUtterance(text);
+    const voice = pickVoice();
+    utter.lang = voice ? voice.lang : "en-US";
+    if (voice) utter.voice = voice;
+    utter.rate = 1;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
+  } catch (e) {}
 }
 
 // --- Ticking via a Web Worker ---
@@ -448,9 +529,12 @@ function fmt(s) {
 }
 
 function updateDisplay() {
-  document.getElementById("clock").textContent = fmt(remaining);
+  const clockEl = document.getElementById("clock");
+  const barEl = document.getElementById("progressBar");
+  if (!clockEl || !barEl) return; // active task's clock box isn't in the DOM right now
+  clockEl.textContent = fmt(remaining);
   const pct = ((totalSeconds - remaining) / totalSeconds) * 100;
-  document.getElementById("progressBar").style.width = pct + "%";
+  barEl.style.width = pct + "%";
 }
 
 function tick() {
@@ -461,14 +545,19 @@ function tick() {
   if (remaining <= 0) {
     remaining = 0;
     updateDisplay();
-    document.getElementById("statusMsg").textContent = "Time is up";
-    beepDone();
+    const statusEl = document.getElementById("statusMsg");
+    if (statusEl) statusEl.textContent = "Time is up";
+    if (soundMode === "voice") {
+      speak("Time is up.");
+    } else {
+      beepDone();
+    }
     notify(currentTaskName + " - Time is up");
     tickWorker.postMessage("stop");
     timerId = null;
-    document.getElementById("pauseBtn").disabled = true;
     releaseWakeLock();
-    activeTaskId = null;
+    // Keep activeTaskId set so the "Time is up" state stays visible in the
+    // task's own card until the user stops or restarts it from there.
     renderTasks();
     return;
   }
@@ -478,9 +567,10 @@ function tick() {
     lastAlertBucket = bucket;
     const minsLeft = Math.round(remaining / 60);
     const msg = currentTaskName + " - " + minsLeft + " min left";
-    document.getElementById("statusMsg").textContent = minsLeft + " min left";
+    const statusEl = document.getElementById("statusMsg");
+    if (statusEl) statusEl.textContent = minsLeft + " min left";
     const progress = (totalSeconds - remaining) / totalSeconds;
-    playAlertTone(progress);
+    playAlertTone(progress, minsLeft + " minutes.");
     notify(msg);
   }
 }
@@ -497,49 +587,51 @@ function startTimer(name, durationSeconds, iv, taskId) {
   currentTaskName = name;
   activeTaskId = taskId || null;
 
-  document.getElementById("taskLabel").textContent = name;
-  document.getElementById("statusMsg").textContent = "Timer running";
-  document.getElementById("pauseBtn").disabled = false;
-  document.getElementById("pauseBtn").textContent = "Pause";
-  updateDisplay();
-  document.getElementById("running").style.display = "block";
-  playAlertTone(0);
-  requestWakeLock();
-
+  // Set timerId before rendering so the task list picks up the "running"
+  // state right away (otherwise the pause button stays disabled on the
+  // very first click, since it reads the old/null timerId).
   clearInterval(timerId);
   timerId = true;
-  tickWorker.postMessage("start");
 
+  // Render so the active task's own card has its clock box in the DOM
+  // before we try to write into it.
   renderTasks();
+
+  const statusEl = document.getElementById("statusMsg");
+  if (statusEl) statusEl.textContent = "Timer running";
+  updateDisplay();
+  playAlertTone(0, Math.round(totalSeconds / 60) + " minutes.");
+  requestWakeLock();
+
+  tickWorker.postMessage("start");
 }
 
-document.getElementById("pauseBtn").addEventListener("click", () => {
+function togglePause() {
   if (!isPaused) {
     isPaused = true;
     tickWorker.postMessage("stop");
     timerId = null;
-    document.getElementById("statusMsg").textContent = "Paused";
-    document.getElementById("pauseBtn").textContent = "Resume";
     releaseWakeLock();
   } else {
     isPaused = false;
     endTime = Date.now() + remaining * 1000; // resume from wherever it was left
-    document.getElementById("statusMsg").textContent = "Timer running";
-    document.getElementById("pauseBtn").textContent = "Pause";
     timerId = true;
     tickWorker.postMessage("start");
     requestWakeLock();
   }
-});
+  renderTasks();
+  const statusEl = document.getElementById("statusMsg");
+  if (statusEl) statusEl.textContent = isPaused ? "Paused" : "Timer running";
+}
 
-document.getElementById("stopBtn").addEventListener("click", () => {
+function stopTimer() {
   tickWorker.postMessage("stop");
   timerId = null;
-  document.getElementById("running").style.display = "none";
+  isPaused = false;
   releaseWakeLock();
   activeTaskId = null;
   renderTasks();
-});
+}
 
 // --- Sound mode preference (persisted in browser storage) ---
 const SOUND_MODE_KEY = "reminder-timer-sound-mode";
@@ -567,7 +659,7 @@ document.querySelectorAll('input[name="soundMode"]').forEach((radio) => {
   radio.addEventListener("change", (e) => {
     soundMode = e.target.value;
     saveSoundMode();
-    playAlertTone(0); // quick preview of the base tone for the chosen mode
+    playAlertTone(0, "15 minutes."); // quick preview of the chosen mode
   });
 });
 
@@ -625,85 +717,125 @@ function renderTasks() {
   tasks.forEach((task) => {
     const item = document.createElement("div");
     item.className = "task-item" + (task.id === activeTaskId ? " active" : "");
-    item.draggable = true;
     item.dataset.taskId = task.id;
 
-    const handle = document.createElement("div");
-    handle.className = "drag-handle";
-    handle.textContent = "⠿";
+    const isActive = task.id === activeTaskId;
+    const isRunningNow = isActive && !!timerId && !isPaused;
+    const isPausedNow = isActive && isPaused;
+    const durationSeconds = task.durationMin * 60 + (task.durationSec || 0);
 
-    const info = document.createElement("div");
-    info.className = "task-info";
+    // --- Row 1: task name and the 3 action buttons — single line ---
+    const row = document.createElement("div");
+    row.className = "task-row";
+
     const nameEl = document.createElement("div");
     nameEl.className = "task-name";
     nameEl.textContent = task.name;
-    const metaEl = document.createElement("div");
-    metaEl.className = "task-meta";
-    metaEl.textContent = formatDuration(task.durationMin, task.durationSec) + " · alert every " + task.interval + " min" + (task.id === activeTaskId ? " · running" : "");
-    info.appendChild(nameEl);
-    info.appendChild(metaEl);
 
     const actions = document.createElement("div");
     actions.className = "task-actions";
 
-    const delB = document.createElement("button");
-    delB.className = "task-delete";
-    delB.textContent = "×";
-    delB.title = "Delete task";
-    delB.addEventListener("click", () => {
+    // Play button: starts the task, or resumes it if paused.
+    const playB = document.createElement("button");
+    playB.className = "task-icon-btn task-start-icon";
+    playB.innerHTML = "&#9654;"; // ▶
+    playB.title = isPausedNow ? "Resume" : "Start";
+    playB.disabled = isRunningNow;
+    playB.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (isPausedNow) {
+        togglePause(); // resume this task
+      } else {
+        startTimer(task.name, durationSeconds, task.interval, task.id);
+      }
+    });
+
+    // Stop/pause button: pauses while running, stops while paused.
+    // Disabled (idle look) when the task isn't the active one.
+    const pauseStopB = document.createElement("button");
+    pauseStopB.className = "task-icon-btn";
+    if (isPausedNow) {
+      pauseStopB.innerHTML = "&#9632;"; // ■
+      pauseStopB.title = "Stop";
+      pauseStopB.disabled = false;
+      pauseStopB.addEventListener("click", (e) => {
+        e.stopPropagation();
+        stopTimer();
+      });
+    } else {
+      pauseStopB.innerHTML = "&#10074;&#10074;"; // ❙❙
+      pauseStopB.title = "Pause";
+      pauseStopB.disabled = !isRunningNow;
+      pauseStopB.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (isRunningNow) togglePause();
+      });
+    }
+
+    // Close button: removes the task (stopping it first if it's active).
+    const closeB = document.createElement("button");
+    closeB.className = "task-icon-btn task-delete";
+    closeB.innerHTML = "&times;";
+    closeB.title = "Delete task";
+    closeB.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (activeTaskId === task.id) {
+        tickWorker.postMessage("stop");
+        timerId = null;
+        isPaused = false;
+        releaseWakeLock();
+        activeTaskId = null;
+      }
       tasks = tasks.filter((t) => t.id !== task.id);
-      if (activeTaskId === task.id) activeTaskId = null;
       saveTasks();
       renderTasks();
     });
 
-    actions.appendChild(delB);
+    actions.appendChild(playB);
+    actions.appendChild(pauseStopB);
+    actions.appendChild(closeB);
 
-    item.appendChild(handle);
-    item.appendChild(info);
-    item.appendChild(actions);
+    row.appendChild(nameEl);
+    row.appendChild(actions);
 
-    // Drag to start: dragging a task card onto the timer pane starts it,
-    // same as picking it up off a paper to-do list and putting it in front of you.
-    item.addEventListener("dragstart", (e) => {
-      item.classList.add("dragging");
-      e.dataTransfer.setData("text/plain", task.id);
-      e.dataTransfer.effectAllowed = "move";
-    });
-    item.addEventListener("dragend", () => {
-      item.classList.remove("dragging");
-    });
+    // --- Row 2: meta line (duration · interval [· running]) ---
+    const metaEl = document.createElement("div");
+    metaEl.className = "task-meta";
+    metaEl.textContent = formatDuration(task.durationMin, task.durationSec) + " · alert every " + task.interval + " min" + (isActive ? " · running" : "");
+
+    item.appendChild(row);
+    item.appendChild(metaEl);
+
+    // --- Row 3 (only when active/expanded): clock box, full card width ---
+    if (isActive) {
+      const clockBox = document.createElement("div");
+      clockBox.className = "task-clock-box";
+
+      const statusP = document.createElement("p");
+      statusP.id = "statusMsg";
+      statusP.textContent = isPaused ? "Paused" : (remaining <= 0 ? "Time is up" : "Timer running");
+
+      const clockP = document.createElement("p");
+      clockP.id = "clock";
+      clockP.textContent = fmt(remaining);
+
+      const track = document.createElement("div");
+      track.className = "progress-track";
+      const bar = document.createElement("div");
+      bar.id = "progressBar";
+      const pct = totalSeconds > 0 ? ((totalSeconds - remaining) / totalSeconds) * 100 : 0;
+      bar.style.width = pct + "%";
+      track.appendChild(bar);
+
+      clockBox.appendChild(statusP);
+      clockBox.appendChild(clockP);
+      clockBox.appendChild(track);
+      item.appendChild(clockBox);
+    }
 
     container.appendChild(item);
   });
 }
-
-const timerCard = document.getElementById("timerCard");
-
-timerCard.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
-  timerCard.classList.add("drop-target");
-});
-
-timerCard.addEventListener("dragleave", (e) => {
-  // Only clear the highlight once the pointer actually leaves the card,
-  // not when it passes over a child element inside it.
-  if (!timerCard.contains(e.relatedTarget)) {
-    timerCard.classList.remove("drop-target");
-  }
-});
-
-timerCard.addEventListener("drop", (e) => {
-  e.preventDefault();
-  timerCard.classList.remove("drop-target");
-  const taskId = e.dataTransfer.getData("text/plain");
-  const task = tasks.find((t) => t.id === taskId);
-  if (task) {
-    const durationSeconds = task.durationMin * 60 + (task.durationSec || 0);
-    startTimer(task.name, durationSeconds, task.interval, task.id);
-  }
-});
 
 const addTaskForm = document.getElementById("addTaskForm");
 const toggleAddBtn = document.getElementById("toggleAddBtn");
