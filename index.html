@@ -202,11 +202,12 @@
           <input type="radio" name="soundMode" value="voice" style="width:auto; margin:0;" />
           Human voice — speaks the time left
         </label>
+        <select id="voiceSelect" style="display:none; margin-top:10px; margin-left:24px; width:calc(100% - 24px); height:36px; border:1px solid #ddd; border-radius:8px; padding:0 10px; font-size:13px; color:#444;"></select>
       </div>
 
       <div class="settings-section">
         <label style="margin-bottom:8px;">Notifications</label>
-        <button id="enableNotifBtn" style="background:#ccc; color:#222;">Enable notifications</button>
+        <button id="enableNotifBtn" style="background:#f0f0ee; color:#222;">Enable notifications</button>
         <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
       </div>
     </div>
@@ -412,47 +413,66 @@ function playAlertTone(progress, message) {
 }
 
 // --- Human voice alerts, via the browser's built-in text-to-speech ---
-// Picks one consistent, natural-sounding voice — never an Indian-English one.
+// Lists every English voice actually installed on the device, so the person
+// can pick whichever one sounds best rather than being stuck with a curated
+// short list (quality/tone varies a lot between voices and devices).
 let cachedVoices = [];
+let selectedVoiceKey = ""; // "" = auto-pick; otherwise "name__lang"
+
+function voiceKey(v) {
+  return v.name + "__" + v.lang;
+}
+
+function populateVoiceSelect() {
+  const select = document.getElementById("voiceSelect");
+  if (!select) return;
+  const prevValue = select.value || selectedVoiceKey;
+
+  let englishVoices = cachedVoices
+    .filter((v) => v.lang && v.lang.toLowerCase().startsWith("en"))
+    .sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+  // Extremely unlikely, but if a device has zero English voices installed,
+  // fall back to listing everything rather than showing an empty dropdown.
+  if (englishVoices.length === 0) englishVoices = cachedVoices.slice();
+
+  select.innerHTML = "";
+  const autoOpt = document.createElement("option");
+  autoOpt.value = "";
+  autoOpt.textContent = "Default (Auto)";
+  select.appendChild(autoOpt);
+
+  englishVoices.forEach((v) => {
+    const opt = document.createElement("option");
+    opt.value = voiceKey(v);
+    opt.textContent = v.name + " (" + v.lang + ")";
+    select.appendChild(opt);
+  });
+
+  const stillValid = Array.from(select.options).some((o) => o.value === prevValue);
+  select.value = stillValid ? prevValue : "";
+  if (!stillValid) selectedVoiceKey = "";
+}
+
 function loadVoices() {
   cachedVoices = window.speechSynthesis.getVoices();
+  populateVoiceSelect();
 }
 if ("speechSynthesis" in window) {
   loadVoices();
   window.speechSynthesis.onvoiceschanged = loadVoices; // voice list loads async in some browsers
 }
 
-// Well-known, good-quality voice names that ship with the major browsers/OSes.
-// Checked in order — first match wins.
-const PREFERRED_VOICE_NAMES = [
-  "Google US English",       // Chrome/Edge (desktop + Android)
-  "Samantha",                 // Safari/macOS/iOS
-  "Microsoft Aria Online (Natural) - English (United States)", // Edge (newer)
-  "Microsoft Zira - English (United States)", // Windows/Edge (older)
-  "Microsoft David - English (United States)", // Windows/Edge (older)
-  "Alex",                     // macOS
-  "Daniel",                   // Safari/macOS (British, decent fallback)
-];
-
-function isIndianEnglish(v) {
-  const lang = (v.lang || "").toLowerCase();
-  const name = (v.name || "").toLowerCase();
-  return lang === "en-in" || name.includes("india") || name.includes("indian");
-}
-
 function pickVoice() {
   if (!cachedVoices.length) cachedVoices = window.speechSynthesis.getVoices();
-  const candidates = cachedVoices.filter((v) => !isIndianEnglish(v));
-
-  for (const name of PREFERRED_VOICE_NAMES) {
-    const match = candidates.find((v) => v.name === name);
-    if (match) return match;
+  if (selectedVoiceKey) {
+    const [name, lang] = selectedVoiceKey.split("__");
+    const chosen = cachedVoices.find((v) => v.name === name && v.lang === lang);
+    if (chosen) return chosen;
   }
-  // Fall back to any US English voice, then any English voice, excluding Indian English throughout.
   return (
-    candidates.find((v) => v.lang === "en-US") ||
-    candidates.find((v) => v.lang && v.lang.startsWith("en")) ||
-    candidates[0] ||
+    cachedVoices.find((v) => v.lang === "en-US") ||
+    cachedVoices.find((v) => v.lang && v.lang.startsWith("en")) ||
+    cachedVoices[0] ||
     null
   );
 }
@@ -463,7 +483,7 @@ function speak(text) {
     window.speechSynthesis.cancel(); // don't let alerts pile up and overlap
     const utter = new SpeechSynthesisUtterance(text);
     const voice = pickVoice();
-    utter.lang = voice ? voice.lang : "en-US";
+    utter.lang = "en-US";
     if (voice) utter.voice = voice;
     utter.rate = 1;
     utter.pitch = 1;
@@ -636,6 +656,11 @@ function stopTimer() {
 // --- Sound mode preference (persisted in browser storage) ---
 const SOUND_MODE_KEY = "reminder-timer-sound-mode";
 
+function updateVoiceSelectVisibility() {
+  const select = document.getElementById("voiceSelect");
+  if (select) select.style.display = soundMode === "voice" ? "block" : "none";
+}
+
 async function loadSoundMode() {
   try {
     const result = await window.storage.get(SOUND_MODE_KEY, false);
@@ -647,6 +672,7 @@ async function loadSoundMode() {
   }
   const radio = document.querySelector('input[name="soundMode"][value="' + soundMode + '"]');
   if (radio) radio.checked = true;
+  updateVoiceSelectVisibility();
 }
 
 async function saveSoundMode() {
@@ -659,11 +685,47 @@ document.querySelectorAll('input[name="soundMode"]').forEach((radio) => {
   radio.addEventListener("change", (e) => {
     soundMode = e.target.value;
     saveSoundMode();
+    updateVoiceSelectVisibility();
     playAlertTone(0, "15 minutes."); // quick preview of the chosen mode
   });
 });
 
 loadSoundMode();
+
+// --- Voice accent preference (persisted in browser storage) ---
+const VOICE_NAME_KEY = "reminder-timer-voice-name";
+
+async function loadVoiceName() {
+  try {
+    const result = await window.storage.get(VOICE_NAME_KEY, false);
+    if (result && typeof result.value === "string") {
+      selectedVoiceKey = result.value;
+    }
+  } catch (e) {
+    // No saved preference yet - keep auto
+  }
+  const select = document.getElementById("voiceSelect");
+  if (select && Array.from(select.options).some((o) => o.value === selectedVoiceKey)) {
+    select.value = selectedVoiceKey;
+  }
+}
+
+async function saveVoiceName() {
+  try {
+    await window.storage.set(VOICE_NAME_KEY, selectedVoiceKey, false);
+  } catch (e) {}
+}
+
+const voiceSelectEl = document.getElementById("voiceSelect");
+if (voiceSelectEl) {
+  voiceSelectEl.addEventListener("change", (e) => {
+    selectedVoiceKey = e.target.value;
+    saveVoiceName();
+    speak("15 minutes."); // preview the chosen accent
+  });
+}
+
+loadVoiceName();
 
 // --- Task list (persisted in browser storage) ---
 let tasks = [];
