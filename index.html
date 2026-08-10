@@ -304,12 +304,14 @@ function playTick(ctx, time, freq, type, gainPeak, duration) {
   o.stop(ctx.currentTime + time + duration + 0.02);
 }
 
+// Calm, steady "tick tick" used for the "Same tone throughout" option:
+// a soft low-pitched sine click, repeated identically every alert.
 function beep() {
   try {
     const ctx = getAudioCtx();
     const playTones = () => {
-      [0, 0.16].forEach((t) => {
-        playTick(ctx, t, 1000, "square", 0.35, 0.06);
+      [0, 0.18].forEach((t) => {
+        playTick(ctx, t, 520, "sine", 0.3, 0.08);
       });
     };
     if (ctx.state === "suspended") {
