@@ -168,8 +168,11 @@
 
       <div class="row">
         <div>
-          <label for="durationMin">Duration (minutes)</label>
-          <input id="durationMin" type="number" min="1" step="15" value="60" />
+          <label for="durationMin">Duration</label>
+          <div class="row" style="gap:8px;">
+            <input id="durationMin" type="number" min="0" step="1" value="60" placeholder="min" />
+            <input id="durationSec" type="number" min="0" max="59" step="1" value="0" placeholder="sec" />
+          </div>
         </div>
         <div>
           <label for="intervalMin">Alert every (minutes)</label>
@@ -422,10 +425,10 @@ function tick() {
   }
 }
 
-// Core start routine, now reusable so both the Start button and a task's
-// Start button can trigger it.
-function startTimer(name, dur, iv, taskId) {
-  totalSeconds = dur * 60;
+// Core start routine, now reusable so both the drag-drop start and a task's
+// saved values can trigger it. durationSeconds is the full countdown length.
+function startTimer(name, durationSeconds, iv, taskId) {
+  totalSeconds = durationSeconds;
   remaining = totalSeconds;
   intervalSec = iv * 60;
   lastAlertBucket = Math.floor(remaining / intervalSec);
@@ -489,6 +492,16 @@ async function loadTasks() {
   } catch (e) {
     tasks = [];
   }
+  // Migrate tasks saved before duration was split into minutes + seconds.
+  let migrated = false;
+  tasks = tasks.map((t) => {
+    if (t.durationMin === undefined) {
+      migrated = true;
+      return { ...t, durationMin: t.duration || 60, durationSec: 0 };
+    }
+    return t;
+  });
+  if (migrated) saveTasks();
   renderTasks();
 }
 
@@ -498,6 +511,11 @@ async function saveTasks() {
   } catch (e) {
     // Storage failed silently — tasks still work for this session
   }
+}
+
+function formatDuration(min, sec) {
+  if (sec && sec > 0) return min + "m " + sec + "s";
+  return min + " min";
 }
 
 function renderTasks() {
@@ -529,7 +547,7 @@ function renderTasks() {
     nameEl.textContent = task.name;
     const metaEl = document.createElement("div");
     metaEl.className = "task-meta";
-    metaEl.textContent = task.duration + " min · alert every " + task.interval + " min" + (task.id === activeTaskId ? " · running" : "");
+    metaEl.textContent = formatDuration(task.durationMin, task.durationSec) + " · alert every " + task.interval + " min" + (task.id === activeTaskId ? " · running" : "");
     info.appendChild(nameEl);
     info.appendChild(metaEl);
 
@@ -590,7 +608,8 @@ timerCard.addEventListener("drop", (e) => {
   const taskId = e.dataTransfer.getData("text/plain");
   const task = tasks.find((t) => t.id === taskId);
   if (task) {
-    startTimer(task.name, task.duration, task.interval, task.id);
+    const durationSeconds = task.durationMin * 60 + (task.durationSec || 0);
+    startTimer(task.name, durationSeconds, task.interval, task.id);
   }
 });
 
@@ -620,7 +639,8 @@ toggleAddBtn.addEventListener("click", () => {
 
 document.getElementById("addTaskBtn").addEventListener("click", () => {
   const name = document.getElementById("taskName").value.trim();
-  const dur = Math.max(1, parseInt(document.getElementById("durationMin").value) || 60);
+  const durMin = Math.max(0, parseInt(document.getElementById("durationMin").value) || 0);
+  const durSec = Math.min(59, Math.max(0, parseInt(document.getElementById("durationSec").value) || 0));
   const iv = Math.max(1, parseInt(document.getElementById("intervalMin").value) || 15);
 
   if (!name) {
@@ -629,10 +649,16 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
     return;
   }
 
+  if (durMin === 0 && durSec === 0) {
+    document.getElementById("durationMin").focus();
+    return;
+  }
+
   tasks.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: name,
-    duration: dur,
+    durationMin: durMin,
+    durationSec: durSec,
     interval: iv,
   });
 
@@ -641,6 +667,7 @@ document.getElementById("addTaskBtn").addEventListener("click", () => {
 
   document.getElementById("taskName").value = "";
   document.getElementById("durationMin").value = 60;
+  document.getElementById("durationSec").value = 0;
   document.getElementById("intervalMin").value = 15;
   closeAddForm();
 });
