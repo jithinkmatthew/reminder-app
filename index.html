@@ -17,7 +17,7 @@
   }
   .app {
     width: 100%;
-    max-width: 560px;
+    max-width: 960px;
     display: flex;
     gap: 20px;
     align-items: flex-start;
@@ -34,7 +34,7 @@
   }
   h1 { font-size: 20px; font-weight: 600; margin: 0 0 20px; }
   label { font-size: 13px; color: #666; display: block; margin-bottom: 6px; }
-  input[type="text"], input[type="number"] {
+  input[type="text"], input[type="number"], input[type="time"] {
     width: 100%;
     height: 40px;
     border: 1px solid #ddd;
@@ -54,10 +54,6 @@
     cursor: pointer;
     width: 100%;
   }
-  #toggleAddBtn { background: #222; color: #fff; }
-  #toggleAddBtn:hover { background: #000; }
-  #toggleAddBtn.is-open { background: #f0f0ee; color: #222; }
-  #toggleAddBtn.is-open:hover { background: #e5e5e2; }
   .btn-row { display: flex; gap: 10px; margin-top: 14px; }
   .btn-row button { background: #f0f0ee; color: #222; }
   .btn-row button:hover { background: #e5e5e2; }
@@ -83,21 +79,41 @@
     color: #222;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    margin: -6px -8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    transition: background 0.15s;
   }
+  .settings-title:hover { background: #f0f0ee; }
+  .settings-caret {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #888;
+    transition: transform 0.2s ease;
+  }
+  .settings-caret.open { transform: rotate(180deg); }
+  .settings-content {
+    max-height: 0;
+    overflow: hidden;
+    padding-top: 14px;
+    transition: max-height 0.25s ease;
+  }
+  .settings-content.open { max-height: 400px; }
   .settings-section { margin-bottom: 16px; }
   .settings-section #enableNotifBtn { height: 40px; }
 
   /* --- Task pane --- */
   .tasks-card { display: flex; flex-direction: column; }
-  #addTaskForm {
-    display: none;
-    margin-top: 20px;
-    padding-top: 4px;
-  }
-  #addTaskForm.open { display: block; }
-  #addTaskBtn { background: #222; color: #fff; }
-  #addTaskBtn:hover { background: #000; }
   .task-list {
     margin-top: 20px;
     display: flex;
@@ -115,6 +131,9 @@
     gap: 6px;
   }
   .task-item.active { border-color: #222; background: #f7f7f5; }
+  .task-item.running { border-color: #1e8e3e; background: #eaf7ee; }
+  .task-item.running .task-clock-box #statusMsg { color: #1e8e3e; font-weight: 500; }
+  .task-item.running .task-clock-box #progressBar { background: #1e8e3e; }
   .task-row {
     display: flex;
     align-items: center;
@@ -142,6 +161,18 @@
   .task-clock-box #statusMsg { font-size: 12px; color: #888; margin: 0 0 4px; }
   .task-clock-box #clock { font-size: 26px; font-weight: 600; margin: 0; font-variant-numeric: tabular-nums; }
   .task-clock-box .progress-track { margin-top: 10px; }
+  .extend-row { display: flex; gap: 6px; margin-top: 12px; justify-content: center; }
+  .extend-btn {
+    width: auto;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 500;
+    background: #f0f0ee;
+    color: #222;
+    border-radius: 999px;
+  }
+  .extend-btn:hover { background: #e5e5e2; }
   .task-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .task-actions button {
     width: auto;
@@ -174,8 +205,111 @@
   .task-actions .task-delete:hover:not(:disabled) { background: #f5d9d9; color: #b33; }
   .task-empty { font-size: 13px; color: #999; text-align: center; padding: 24px 0; }
   @media (max-width: 720px) {
-    .app { flex-direction: column; }
+    .app { flex-direction: column; align-items: stretch; }
   }
+
+  /* --- Day timeline (vertical 24hr schedule, duration-proportional blocks) --- */
+  .calendar-card h1 { margin-bottom: 4px; }
+  .calendar-subtitle { font-size: 12px; color: #888; margin: 0 0 16px; }
+  .day-timeline {
+    display: flex;
+    max-height: 560px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-top: 1px solid #f0f0ee;
+    scrollbar-width: thin;
+    scrollbar-color: #ccc #f0f0ee;
+  }
+  .day-timeline::-webkit-scrollbar { width: 8px; }
+  .day-timeline::-webkit-scrollbar-track { background: #f0f0ee; border-radius: 999px; }
+  .day-timeline::-webkit-scrollbar-thumb { background: #ccc; border-radius: 999px; }
+  .day-timeline::-webkit-scrollbar-thumb:hover { background: #bbb; }
+  .timeline-sidebar { flex-shrink: 0; width: 56px; }
+  .timeline-hour-label {
+    box-sizing: border-box;
+    height: 60px;
+    padding: 2px 10px 0 0;
+    font-size: 12px;
+    color: #888;
+    text-align: right;
+    cursor: pointer;
+  }
+  .timeline-hour-label:hover { color: #222; }
+  .timeline-track {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    border-left: 1px solid #f0f0ee;
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 59px, #f0f0ee 59px, #f0f0ee 60px);
+    cursor: pointer;
+  }
+  .timeline-task {
+    position: absolute;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f7f7f5;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 4px 8px;
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.3;
+    cursor: default;
+  }
+  .timeline-task.active { border-color: #222; background: #fff; }
+  .timeline-task.running { border-color: #1e8e3e; background: #eaf7ee; }
+  .timeline-task.running .timeline-task-time { color: #1e8e3e; }
+  .timeline-task.done { border-color: #94a3b8; background: #fff; }
+  .timeline-task-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .timeline-task .timeline-task-name { font-weight: 600; color: #222; }
+  .timeline-task .timeline-task-time { color: #666; }
+  .timeline-task .timeline-task-duration { color: #888; }
+  .timeline-task .timeline-task-sep { color: #ccc; }
+  .timeline-task-status-bar {
+    flex-shrink: 0;
+    display: flex;
+    width: 32px;
+    height: 5px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    overflow: hidden;
+  }
+  .timeline-task-status-bar-ontime { height: 100%; background: #22c55e; }
+  .timeline-task-status-bar-extra { height: 100%; background: #f97316; }
+
+  /* --- Click-to-create popup --- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1000;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    width: 100%;
+    max-width: 360px;
+  }
+  .modal-title { font-size: 18px; font-weight: 600; margin: 0 0 18px; }
+  #modalCancelBtn { background: #f0f0ee; color: #222; }
+  #modalCancelBtn:hover { background: #e5e5e2; }
+  #modalAddBtn { background: #222; color: #fff; }
+  #modalAddBtn:hover { background: #000; }
 </style>
 </head>
 <body>
@@ -186,65 +320,84 @@
     <h1>Today's tasks</h1>
 
     <div class="settings-card">
-      <div class="settings-title">Settings</div>
-
-      <div class="settings-section">
-        <label style="margin-bottom:8px;">Alert sound</label>
-        <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
-          <input type="radio" name="soundMode" value="same" checked style="width:auto; margin:0;" />
-          Same tone throughout
-        </label>
-        <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
-          <input type="radio" name="soundMode" value="escalating" style="width:auto; margin:0;" />
-          Escalating tone — starts cool, builds urgency as time runs low
-        </label>
-        <label style="font-weight:400; display:flex; align-items:center; gap:8px; font-size:13px; color:#444; cursor:pointer;">
-          <input type="radio" name="soundMode" value="voice" style="width:auto; margin:0;" />
-          Human voice — speaks the time left
-        </label>
-        <select id="voiceSelect" style="display:none; margin-top:10px; margin-left:24px; width:calc(100% - 24px); height:36px; border:1px solid #ddd; border-radius:8px; padding:0 10px; font-size:13px; color:#444;"></select>
+      <div class="settings-title" id="settingsToggle">
+        <span>Settings</span>
+        <span class="settings-caret" id="settingsCaret">&#9660;</span>
       </div>
 
-      <div class="settings-section">
-        <label style="margin-bottom:8px;">Notifications</label>
-        <button id="enableNotifBtn" style="background:#f0f0ee; color:#222;">Enable notifications</button>
-        <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
-      </div>
-    </div>
-
-    <button id="toggleAddBtn" style="margin-top:20px;">+ Add task</button>
-
-    <div id="addTaskForm">
-      <label for="taskName">Task name</label>
-      <input id="taskName" type="text" placeholder="Write project report" />
-
-      <div class="row">
-        <div>
-          <div class="row" style="gap:8px;">
-            <div>
-              <label for="durationMin" >Minutes</label>
-              <input id="durationMin" type="number" min="0" step="1" value="0" placeholder="min" />
-            </div>
-            <div>
-              <label for="durationSec" >Seconds</label>
-              <input id="durationSec" type="number" min="0" max="59" step="1" value="0" placeholder="sec" />
-            </div>
-          </div>
+      <div class="settings-content" id="settingsContent">
+        <div class="settings-section">
+          <label style="margin-bottom:8px;">Alert sound</label>
+          <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
+            <input type="radio" name="soundMode" value="same" checked style="width:auto; margin:0;" />
+            Same tone throughout
+          </label>
+          <label style="font-weight:400; display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:#444; cursor:pointer;">
+            <input type="radio" name="soundMode" value="escalating" style="width:auto; margin:0;" />
+            Escalating tone — starts cool, builds urgency as time runs low
+          </label>
+          <label style="font-weight:400; display:flex; align-items:center; gap:8px; font-size:13px; color:#444; cursor:pointer;">
+            <input type="radio" name="soundMode" value="voice" style="width:auto; margin:0;" />
+            Human voice — speaks the time left
+          </label>
+          <select id="voiceSelect" style="display:none; margin-top:10px; margin-left:24px; width:calc(100% - 24px); height:36px; border:1px solid #ddd; border-radius:8px; padding:0 10px; font-size:13px; color:#444;"></select>
         </div>
-        <div>
-          <label for="intervalMin">Alert every (minutes)</label>
-          <input id="intervalMin" type="number" min="1" step="1" value="0" />
+
+        <div class="settings-section">
+          <label style="margin-bottom:8px;">Notifications</label>
+          <button id="enableNotifBtn" style="background:#f0f0ee; color:#222;">Enable notifications</button>
+          <p id="notifStatus" style="font-size:12px; color:#888; margin-top:8px; text-align:center;"></p>
         </div>
       </div>
-
-      <button id="addTaskBtn">Add task</button>
     </div>
 
     <div id="taskList" class="task-list">
-      <p class="task-empty">No tasks yet. Click "+ Add task" to create one.</p>
+      <p class="task-empty">No tasks yet. Click a time on "Today's schedule" to create one.</p>
     </div>
   </div>
 
+  <div class="card calendar-card">
+    <h1>Today's schedule</h1>
+    <p class="calendar-subtitle">Scroll to see the full day — tasks appear on the timeline, sized by duration.</p>
+    <div id="dayTimeline" class="day-timeline"></div>
+  </div>
+
+</div>
+
+<div id="taskModalOverlay" class="modal-overlay">
+  <div class="modal-card">
+    <h2 class="modal-title">New task</h2>
+
+    <label for="modalTaskName">Task name</label>
+    <input id="modalTaskName" type="text" placeholder="Write project report" />
+
+    <label for="modalTaskTime">Start time</label>
+    <input id="modalTaskTime" type="time" />
+
+    <div class="row">
+      <div>
+        <div class="row" style="gap:8px;">
+          <div>
+            <label for="modalDurationMin">Minutes</label>
+            <input id="modalDurationMin" type="number" min="0" step="1" value="30" placeholder="min" />
+          </div>
+          <div>
+            <label for="modalDurationSec">Seconds</label>
+            <input id="modalDurationSec" type="number" min="0" max="59" step="1" value="0" placeholder="sec" />
+          </div>
+        </div>
+      </div>
+      <div>
+        <label for="modalIntervalMin">Alert every (minutes)</label>
+        <input id="modalIntervalMin" type="number" min="1" step="1" value="15" />
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button id="modalCancelBtn" type="button">Cancel</button>
+      <button id="modalAddBtn" type="button">Add task</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -653,6 +806,35 @@ function stopTimer() {
   renderTasks();
 }
 
+// Adds extra minutes to the currently active task's countdown, so it can
+// be extended mid-run instead of having to stop/restart with a longer duration.
+// Saved onto the task itself (task.extendedMin) rather than kept as transient
+// runtime state, so the added time — and the "+X min" shown for it — sticks
+// permanently and never reverts, even after the task is stopped, restarted,
+// or the page is reloaded.
+function extendTimer(minutes) {
+  const addSeconds = minutes * 60;
+  totalSeconds += addSeconds;
+  if (isPaused) {
+    remaining += addSeconds;
+  } else {
+    endTime += addSeconds * 1000;
+    remaining = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+  }
+  // Re-anchor the alert-interval bucket to the new remaining time so the
+  // extension itself doesn't immediately trigger an interval alert.
+  lastAlertBucket = Math.floor(remaining / intervalSec);
+
+  const task = tasks.find((t) => t.id === activeTaskId);
+  if (task) {
+    task.extendedMin = (task.extendedMin || 0) + minutes;
+    saveTasks();
+  }
+
+  updateDisplay();
+  renderTasks();
+}
+
 // --- Sound mode preference (persisted in browser storage) ---
 const SOUND_MODE_KEY = "reminder-timer-sound-mode";
 
@@ -747,6 +929,22 @@ async function loadTasks() {
     }
     return t;
   });
+  // Migrate tasks saved before the optional scheduled start time existed.
+  tasks = tasks.map((t) => {
+    if (t.scheduledTime === undefined) {
+      migrated = true;
+      return { ...t, scheduledTime: "" };
+    }
+    return t;
+  });
+  // Migrate tasks saved before the extend-timer feature existed.
+  tasks = tasks.map((t) => {
+    if (t.extendedMin === undefined) {
+      migrated = true;
+      return { ...t, extendedMin: 0 };
+    }
+    return t;
+  });
   if (migrated) saveTasks();
   renderTasks();
 }
@@ -764,27 +962,194 @@ function formatDuration(min, sec) {
   return min + " min";
 }
 
+function formatHourLabel(hour) {
+  const period = hour < 12 ? "AM" : "PM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return displayHour + " " + period;
+}
+
+function formatScheduledTime(scheduledTime) {
+  const [h, m] = scheduledTime.split(":").map(Number);
+  const period = h < 12 ? "AM" : "PM";
+  const displayHour = h % 12 === 0 ? 12 : h % 12;
+  return displayHour + ":" + String(m).padStart(2, "0") + " " + period;
+}
+
+const TIMELINE_HOUR_HEIGHT = 60; // px per hour row — must match .timeline-hour-label height in CSS
+const TIMELINE_COLUMN_GAP = 4; // px gap between side-by-side columns for overlapping tasks
+const TIMELINE_MIN_BLOCK_HEIGHT = 20; // px — keeps very short tasks visible/legible
+
+function scheduledTimeToMinutes(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function renderDayTimeline() {
+  const timeline = document.getElementById("dayTimeline");
+  if (!timeline) return;
+  timeline.innerHTML = "";
+
+  const totalHeight = 24 * TIMELINE_HOUR_HEIGHT;
+
+  const sidebar = document.createElement("div");
+  sidebar.className = "timeline-sidebar";
+  sidebar.style.height = totalHeight + "px";
+  for (let hour = 0; hour < 24; hour++) {
+    const label = document.createElement("div");
+    label.className = "timeline-hour-label";
+    label.textContent = formatHourLabel(hour);
+    label.addEventListener("click", () => openTaskModal(hourToTimeValue(hour)));
+    sidebar.appendChild(label);
+  }
+
+  // One block per scheduled task, sized in proportion to its duration
+  // (e.g. an 8:00 start with a 120-minute duration spans down to 10:00).
+  // Minutes added via the extend buttons are saved on the task itself
+  // (t.extendedMin), so the taller block sticks permanently — it doesn't
+  // shrink back down after the task is stopped, restarted, or reloaded.
+  const blocks = tasks
+    .filter((t) => t.scheduledTime)
+    .map((t) => {
+      const start = scheduledTimeToMinutes(t.scheduledTime);
+      const extra = t.extendedMin || 0;
+      const durationMinutes = Math.max(1, t.durationMin + (t.durationSec || 0) / 60 + extra);
+      const end = Math.min(24 * 60, start + durationMinutes);
+      return { task: t, start, end, extra };
+    })
+    .sort((a, b) => a.start - b.start);
+
+  // Greedy column assignment so tasks whose time ranges overlap sit
+  // side-by-side instead of visually colliding, like a real calendar.
+  const columnEnds = [];
+  blocks.forEach((b) => {
+    let col = columnEnds.findIndex((end) => end <= b.start);
+    if (col === -1) {
+      col = columnEnds.length;
+      columnEnds.push(b.end);
+    } else {
+      columnEnds[col] = b.end;
+    }
+    b.col = col;
+  });
+
+  const track = document.createElement("div");
+  track.className = "timeline-track";
+  track.style.height = totalHeight + "px";
+  track.addEventListener("click", (e) => {
+    const rect = track.getBoundingClientRect();
+    const hour = Math.max(0, Math.min(23, Math.floor((e.clientY - rect.top) / TIMELINE_HOUR_HEIGHT)));
+    openTaskModal(hourToTimeValue(hour));
+  });
+
+  const numCols = Math.max(1, columnEnds.length);
+  const pxPerMinute = TIMELINE_HOUR_HEIGHT / 60;
+  blocks.forEach((b) => {
+    const pill = document.createElement("div");
+    const isBlockRunning = b.task.id === activeTaskId && !!timerId && !isPaused;
+    // "Done" = this is the active task and its countdown has actually
+    // finished (mirrors the "Time is up" condition used elsewhere).
+    const isDone = b.task.id === activeTaskId && !timerId && !isPaused && remaining <= 0;
+    pill.className = "timeline-task" +
+      (b.task.id === activeTaskId ? " active" : "") +
+      (isBlockRunning ? " running" : "") +
+      (isDone ? " done" : "");
+    pill.addEventListener("click", (e) => e.stopPropagation());
+    pill.style.top = (b.start * pxPerMinute) + "px";
+    pill.style.height = Math.max(TIMELINE_MIN_BLOCK_HEIGHT, (b.end - b.start) * pxPerMinute) + "px";
+    pill.style.left = "calc(" + (b.col * 100 / numCols) + "% + " + (b.col === 0 ? 4 : TIMELINE_COLUMN_GAP / 2) + "px)";
+    pill.style.width = "calc(" + (100 / numCols) + "% - " + (b.col === 0 || b.col === numCols - 1 ? 4 + TIMELINE_COLUMN_GAP / 2 : TIMELINE_COLUMN_GAP) + "px)";
+
+    const sep = () => {
+      const s = document.createElement("span");
+      s.className = "timeline-task-sep";
+      s.textContent = " - ";
+      return s;
+    };
+
+    // Single line: task name - start time - duration [+extra].
+    const textWrap = document.createElement("span");
+    textWrap.className = "timeline-task-text";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "timeline-task-name";
+    nameSpan.textContent = b.task.name;
+
+    const timeSpan = document.createElement("span");
+    timeSpan.className = "timeline-task-time";
+    timeSpan.textContent = formatScheduledTime(b.task.scheduledTime);
+
+    const durationSpan = document.createElement("span");
+    durationSpan.className = "timeline-task-duration";
+    durationSpan.textContent = formatDuration(b.task.durationMin, b.task.durationSec) + (b.extra > 0 ? " +" + b.extra + " min" : "");
+
+    textWrap.appendChild(nameSpan);
+    textWrap.appendChild(sep());
+    textWrap.appendChild(timeSpan);
+    textWrap.appendChild(sep());
+    textWrap.appendChild(durationSpan);
+    pill.appendChild(textWrap);
+
+    // Done: a small horizontal bar at the end of the same line shows how the
+    // task went. Completed on time (no extra minutes) -> the bar is fully
+    // green. Took extra time -> the bar splits into the on-time portion
+    // (green) and the extra portion (orange), sized by their share of the
+    // total time actually taken (base + extra) — e.g. a 30 min task
+    // finished with +10 min extra shows orange for 10/40 = 25% of the bar.
+    if (isDone) {
+      const baseMinutes = b.task.durationMin + (b.task.durationSec || 0) / 60;
+      const totalMinutes = baseMinutes + b.extra;
+      const extraPct = totalMinutes > 0 ? Math.min(100, (b.extra / totalMinutes) * 100) : 0;
+      const onTimePct = 100 - extraPct;
+
+      const barTrack = document.createElement("div");
+      barTrack.className = "timeline-task-status-bar";
+      barTrack.title = b.extra > 0 ? ("Completed with +" + b.extra + " min extra") : "Completed on time";
+
+      const onTimeFill = document.createElement("div");
+      onTimeFill.className = "timeline-task-status-bar-ontime";
+      onTimeFill.style.width = onTimePct + "%";
+      barTrack.appendChild(onTimeFill);
+
+      if (b.extra > 0) {
+        const extraFill = document.createElement("div");
+        extraFill.className = "timeline-task-status-bar-extra";
+        extraFill.style.width = extraPct + "%";
+        barTrack.appendChild(extraFill);
+      }
+
+      pill.appendChild(barTrack);
+    }
+
+    track.appendChild(pill);
+  });
+
+  timeline.appendChild(sidebar);
+  timeline.appendChild(track);
+}
+
 function renderTasks() {
+  renderDayTimeline();
+
   const container = document.getElementById("taskList");
   container.innerHTML = "";
 
   if (tasks.length === 0) {
     const empty = document.createElement("p");
     empty.className = "task-empty";
-    empty.textContent = "No tasks yet. Click \"+ Add task\" to create one.";
+    empty.textContent = "No tasks yet. Click a time on \"Today's schedule\" to create one.";
     container.appendChild(empty);
     return;
   }
 
   tasks.forEach((task) => {
-    const item = document.createElement("div");
-    item.className = "task-item" + (task.id === activeTaskId ? " active" : "");
-    item.dataset.taskId = task.id;
-
     const isActive = task.id === activeTaskId;
     const isRunningNow = isActive && !!timerId && !isPaused;
     const isPausedNow = isActive && isPaused;
-    const durationSeconds = task.durationMin * 60 + (task.durationSec || 0);
+    const durationSeconds = task.durationMin * 60 + (task.durationSec || 0) + (task.extendedMin || 0) * 60;
+
+    const item = document.createElement("div");
+    item.className = "task-item" + (isActive ? " active" : "") + (isRunningNow ? " running" : "");
+    item.dataset.taskId = task.id;
 
     // --- Row 1: task name and the 3 action buttons — single line ---
     const row = document.createElement("div");
@@ -860,10 +1225,11 @@ function renderTasks() {
     row.appendChild(nameEl);
     row.appendChild(actions);
 
-    // --- Row 2: meta line (duration · interval [· running]) ---
+    // --- Row 2: meta line (duration [+extended] · interval [· running]) ---
     const metaEl = document.createElement("div");
     metaEl.className = "task-meta";
-    metaEl.textContent = formatDuration(task.durationMin, task.durationSec) + " · alert every " + task.interval + " min" + (isActive ? " · running" : "");
+    const extendedText = task.extendedMin > 0 ? " +" + task.extendedMin + " min" : "";
+    metaEl.textContent = formatDuration(task.durationMin, task.durationSec) + extendedText + " · alert every " + task.interval + " min" + (isActive ? " · running" : "");
 
     item.appendChild(row);
     item.appendChild(metaEl);
@@ -892,6 +1258,26 @@ function renderTasks() {
       clockBox.appendChild(statusP);
       clockBox.appendChild(clockP);
       clockBox.appendChild(track);
+
+      // Extend the running/paused countdown — hidden once time is up,
+      // since there's nothing left to add minutes to.
+      if (isRunningNow || isPausedNow) {
+        const extendRow = document.createElement("div");
+        extendRow.className = "extend-row";
+        [1, 5, 10, 15].forEach((mins) => {
+          const extendB = document.createElement("button");
+          extendB.className = "extend-btn";
+          extendB.type = "button";
+          extendB.textContent = "+" + mins + " min";
+          extendB.addEventListener("click", (e) => {
+            e.stopPropagation();
+            extendTimer(mins);
+          });
+          extendRow.appendChild(extendB);
+        });
+        clockBox.appendChild(extendRow);
+      }
+
       item.appendChild(clockBox);
     }
 
@@ -899,63 +1285,80 @@ function renderTasks() {
   });
 }
 
-const addTaskForm = document.getElementById("addTaskForm");
-const toggleAddBtn = document.getElementById("toggleAddBtn");
+// --- Settings accordion ---
+const settingsToggle = document.getElementById("settingsToggle");
+const settingsContent = document.getElementById("settingsContent");
+const settingsCaret = document.getElementById("settingsCaret");
 
-function openAddForm() {
-  addTaskForm.classList.add("open");
-  toggleAddBtn.textContent = "Cancel";
-  toggleAddBtn.classList.add("is-open");
-  document.getElementById("taskName").focus();
-}
-
-function closeAddForm() {
-  addTaskForm.classList.remove("open");
-  toggleAddBtn.textContent = "+ Add task";
-  toggleAddBtn.classList.remove("is-open");
-}
-
-toggleAddBtn.addEventListener("click", () => {
-  if (addTaskForm.classList.contains("open")) {
-    closeAddForm();
-  } else {
-    openAddForm();
-  }
+settingsToggle.addEventListener("click", () => {
+  settingsContent.classList.toggle("open");
+  settingsCaret.classList.toggle("open");
 });
 
-document.getElementById("addTaskBtn").addEventListener("click", () => {
-  const name = document.getElementById("taskName").value.trim();
-  const durMin = Math.max(0, parseInt(document.getElementById("durationMin").value) || 0);
-  const durSec = Math.min(59, Math.max(0, parseInt(document.getElementById("durationSec").value) || 0));
-  const iv = Math.max(1, parseInt(document.getElementById("intervalMin").value) || 15);
+// Used by the schedule's click-to-create popup — the only way to add a
+// task now that the inline "+ Add task" form has been removed.
+function addTask(name, scheduledTime, durMin, durSec, interval) {
+  tasks.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: name,
+    scheduledTime: scheduledTime,
+    durationMin: durMin,
+    durationSec: durSec,
+    interval: interval,
+    extendedMin: 0,
+  });
+  saveTasks();
+  renderTasks();
+}
+
+// --- Click-to-create: clicking a time block on the schedule opens a
+// small popup pre-filled with that start time. ---
+const taskModalOverlay = document.getElementById("taskModalOverlay");
+
+function hourToTimeValue(hour) {
+  return String(hour).padStart(2, "0") + ":00";
+}
+
+function openTaskModal(scheduledTime) {
+  document.getElementById("modalTaskName").value = "";
+  document.getElementById("modalTaskName").placeholder = "Write project report";
+  document.getElementById("modalTaskTime").value = scheduledTime || "";
+  document.getElementById("modalDurationMin").value = 30;
+  document.getElementById("modalDurationSec").value = 0;
+  document.getElementById("modalIntervalMin").value = 15;
+  taskModalOverlay.classList.add("open");
+  document.getElementById("modalTaskName").focus();
+}
+
+function closeTaskModal() {
+  taskModalOverlay.classList.remove("open");
+}
+
+document.getElementById("modalCancelBtn").addEventListener("click", closeTaskModal);
+taskModalOverlay.addEventListener("click", (e) => {
+  if (e.target === taskModalOverlay) closeTaskModal();
+});
+
+document.getElementById("modalAddBtn").addEventListener("click", () => {
+  const name = document.getElementById("modalTaskName").value.trim();
+  const scheduledTime = document.getElementById("modalTaskTime").value;
+  const durMin = Math.max(0, parseInt(document.getElementById("modalDurationMin").value) || 0);
+  const durSec = Math.min(59, Math.max(0, parseInt(document.getElementById("modalDurationSec").value) || 0));
+  const iv = Math.max(1, parseInt(document.getElementById("modalIntervalMin").value) || 15);
 
   if (!name) {
-    document.getElementById("taskName").focus();
-    document.getElementById("taskName").placeholder = "Name this task before adding it";
+    document.getElementById("modalTaskName").focus();
+    document.getElementById("modalTaskName").placeholder = "Name this task before adding it";
     return;
   }
 
   if (durMin === 0 && durSec === 0) {
-    document.getElementById("durationMin").focus();
+    document.getElementById("modalDurationMin").focus();
     return;
   }
 
-  tasks.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name: name,
-    durationMin: durMin,
-    durationSec: durSec,
-    interval: iv,
-  });
-
-  saveTasks();
-  renderTasks();
-
-  document.getElementById("taskName").value = "";
-  document.getElementById("durationMin").value = 60;
-  document.getElementById("durationSec").value = 0;
-  document.getElementById("intervalMin").value = 15;
-  closeAddForm();
+  addTask(name, scheduledTime, durMin, durSec, iv);
+  closeTaskModal();
 });
 
 loadTasks();
