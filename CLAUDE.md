@@ -4,7 +4,7 @@ This file gives Claude (and Claude Code) the context needed to work on this proj
 
 ## Project overview
 
-**Reminder Timer** is a single-file, client-side web app for running a countdown timer against a daily task schedule. A user creates tasks (name, start time, duration, alert interval) by clicking a slot on a day timeline (or an "Add new task" button), starts one from its own card, and the app counts down, firing a periodic alert at the chosen interval (tone, escalating tone, or spoken voice) and a distinct completion sound/announcement when time runs out.
+**MyCue** (formerly "Reminder Timer", internal keys/ids still use `reminder-timer-*`) is a single-file, client-side web app for running a countdown timer against a daily task schedule. A user creates tasks (name, start time, duration, alert interval) by clicking a slot on a day timeline (or an "Add new task" button), starts one from its own card, and the app counts down, firing a periodic alert at the chosen interval (tone, escalating tone, or spoken voice) and a distinct completion sound/announcement when time runs out.
 
 There is no backend. Everything — UI, logic, and persistence — lives in one HTML file.
 
@@ -12,7 +12,7 @@ There is no backend. Everything — UI, logic, and persistence — lives in one 
 
 - Plain HTML + CSS + vanilla JavaScript. No frameworks, no build step, no package.json.
 - No external libraries or CDN imports.
-- Persistence via the `window.storage` browser-storage API (get/set/delete/list), **not** `localStorage`/`sessionStorage` — those are unavailable in the Claude Artifacts sandbox this app is developed in and must never be reintroduced. **Note:** `window.storage` is also not available in a normal deployed context (e.g. the Vercel deployment) — this needs a real persistence layer (e.g. `localStorage`) swapped in before/after it leaves Claude's environment, or storage calls will fail.
+- Persistence via plain `localStorage` (see below — this replaced the earlier `window.storage`-based approach, which only worked inside the Claude Artifacts sandbox and didn't persist in the real Vercel deployment).
 - Audio via the Web Audio API (`AudioContext`), generated in-code (oscillators) — no audio files.
 - Spoken alerts via the `SpeechSynthesis` API — no audio files or TTS backend calls; uses whatever voices the browser/OS exposes.
 - Background-safe ticking via a dedicated `Worker` (created from an inline `Blob`), because `setInterval` on the main thread gets throttled when the tab is backgrounded.
@@ -43,7 +43,7 @@ There is nothing to install and nothing to build. To preview changes, just open 
   8. Let the timer reach zero — confirm the completion chime (or "Time is up." if in voice mode) plays, the card shows "Time is up", and the timeline block shows the on-time/extra-time status bar.
   9. Pause, resume (via ▶), and stop (via the same icon showing ■ once paused) from the task's own icon row.
   10. Delete (×) a task while it's active — confirm the timer actually stops (worker stopped, wake lock released), not just removed from the list and timeline.
-  11. Reload the page — tasks, sound-mode, and voice-accent preferences should still be there (loaded from `window.storage`).
+  11. Reload the page — tasks, sound-mode, and voice-accent preferences should still be there (loaded from `localStorage`).
   12. Check the "Enable notifications" button — it should only be visible when permission is still `"default"`; once granted/denied for that origin it correctly disappears.
 - There is no automated test suite. If one is ever added, document how to run it here.
 
@@ -67,7 +67,7 @@ Everything runs in one `<script>` block at the bottom of the file. Key pieces:
 - **Day timeline** (`renderDayTimeline()`): renders a 24-hour vertical schedule — an hour-label sidebar plus a track where each task with a `scheduledTime` is drawn as an absolutely-positioned block, `top`/`height` computed from its start time and total duration (`durationMin + durationSec/60 + extendedMin`, `TIMELINE_HOUR_HEIGHT` px per hour). Overlapping tasks are assigned side-by-side columns via a greedy interval-scheduling pass (`columnEnds`). Blocks get `.active`/`.running`/`.done` styling mirroring the task card's state. A completed task's block additionally renders a two-segment status bar (green = on-time portion, orange = extra-time portion, sized by `extendedMin`'s share of total time taken).
 - **Click-to-create modal** (`openTaskModal()` / `closeTaskModal()` / `#taskModalOverlay`): the only way to add a task. Opened three ways — clicking an hour label in the timeline sidebar, clicking a spot on the timeline track (`Math.floor` of the click's Y-position into an hour), or the "+ Add new task" button under Settings (opens with a blank start time). Fields: task name, start time, duration as **Hours + Minutes** (no seconds in the UI — `durationSec` is always saved as `0` for tasks created through the modal), and alert interval. `#modalAddBtn`'s handler validates a non-empty name and non-zero total duration before calling `addTask(...)`.
 - **`addTask(name, scheduledTime, durMin, durSec, interval)`** pushes a new task object (with a generated id and `extendedMin: 0`) and re-renders both the list and the timeline.
-- **Persistence**: three `window.storage` keys, all non-shared (`shared: false`, i.e. private to the user):
+- **Persistence**: three `localStorage` keys (kept as the original `reminder-timer-*` names even after the MyCue rebrand, since renaming them would strand existing users' saved data):
   - `reminder-timer-tasks` — JSON array of task objects `{ id, name, scheduledTime, durationMin, durationSec, interval, extendedMin }`.
   - `reminder-timer-sound-mode` — `"same"` | `"escalating"` | `"voice"`.
   - `reminder-timer-voice-name` — `""` (auto) or a `"name__lang"` composite key identifying a specific installed voice.
@@ -76,7 +76,7 @@ Everything runs in one `<script>` block at the bottom of the file. Key pieces:
 
 ## Current UI layout
 
-Two-column layout (`.app`): a "Today's tasks" card on the left, a "Today's schedule" (day timeline) card on the right. Below 720px wide, they stack vertically.
+A `.site-header` (inline SVG logo + "MyCue" wordmark) sits above the main content, followed by the two-column layout (`.app`): a "Today's tasks" card on the left, a "Today's schedule" (day timeline) card on the right. Below 720px wide, the two cards stack vertically.
 
 **"Today's tasks" card**, top to bottom:
 1. **Settings card** (nested, boxed, collapsible accordion — click the "Settings" header to expand/collapse):
@@ -96,7 +96,8 @@ Two-column layout (`.app`): a "Today's tasks" card on the left, a "Today's sched
 ## Conventions to follow when editing
 
 - Keep everything in the single `index.html` file unless explicitly asked to split it up.
-- Never introduce `localStorage`/`sessionStorage` — use the `window.storage` API and wrap calls in try/catch.
+- Persistence uses `localStorage` directly — wrap calls in try/catch (private browsing / storage-disabled contexts can throw), but there's no longer a sandbox-storage abstraction to route through.
+- The task-list card heading stays "Today's tasks" — it was tried as "MyCue" and reverted; don't change it without being asked.
 - Keep tone-based alerts implemented as Web Audio oscillator code, not audio file assets. Keep voice alerts as `SpeechSynthesis`, not TTS audio files or network calls.
 - Voice-mode spoken text stays minimal (time only) — don't add the task name or other detail back into what gets spoken unless asked.
 - Don't build accent/voice filtering logic that singles out or excludes any specific accent/nationality (e.g. excluding Indian English) — list what's available, or curate positively (a preferred/known-good list), never exclude by nationality.
@@ -106,5 +107,5 @@ Two-column layout (`.app`): a "Today's tasks" card on the left, a "Today's sched
 
 ## Open items / known gotchas
 
-- **`window.storage` won't work outside Claude's Artifacts sandbox.** The user has deployed this to Vercel; on that deployment, saved tasks/settings likely aren't actually persisting since `window.storage` doesn't exist there. This needs a real persistence layer (e.g. `localStorage`, or a small backend) before it'll work correctly in production.
 - Voice quality/accent availability is entirely dependent on the browser and OS the person is using — there's no way to guarantee a specific voice (e.g. "Google US English") is available on every device; the UI is built to degrade gracefully (dynamic list + "Default (Auto)" fallback) rather than assume anything is present.
+- `localStorage` is per-origin and per-browser: switching devices/browsers, or clearing site data, loses tasks and settings. There's no sync or backend.

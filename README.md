@@ -1,4 +1,4 @@
-# Reminder Timer
+# MyCue
 
 A timer that reminds you to stay on task at set intervals until time's up — laid out as a daily schedule.
 
