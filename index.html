@@ -259,6 +259,26 @@
     background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 59px, #f0f0ee 59px, #f0f0ee 60px);
     cursor: pointer;
   }
+  .timeline-now-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #e11d48;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .timeline-now-line::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #e11d48;
+  }
   .timeline-task {
     position: absolute;
     box-sizing: border-box;
@@ -1020,6 +1040,7 @@ function formatScheduledTime(scheduledTime) {
 }
 
 const TIMELINE_HOUR_HEIGHT = 60; // px per hour row — must match .timeline-hour-label height in CSS
+let hasScrolledTimelineToNow = false;
 const TIMELINE_COLUMN_GAP = 4; // px gap between side-by-side columns for overlapping tasks
 const TIMELINE_MIN_BLOCK_HEIGHT = 20; // px — keeps very short tasks visible/legible
 
@@ -1167,8 +1188,25 @@ function renderDayTimeline() {
     track.appendChild(pill);
   });
 
+  // Red "now" line showing the current time of day.
+  const nowLine = document.createElement("div");
+  nowLine.className = "timeline-now-line";
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  nowLine.style.top = (nowMinutes * pxPerMinute) + "px";
+  track.appendChild(nowLine);
+
   timeline.appendChild(sidebar);
   timeline.appendChild(track);
+
+  // Scroll the schedule to the current time on first render, so e.g. at
+  // 2PM the view opens with the 2PM row at the top instead of 12AM.
+  if (!hasScrolledTimelineToNow) {
+    hasScrolledTimelineToNow = true;
+    const now = new Date();
+    const currentHourPx = now.getHours() * TIMELINE_HOUR_HEIGHT;
+    timeline.scrollTop = currentHourPx;
+  }
 }
 
 function renderTasks() {
